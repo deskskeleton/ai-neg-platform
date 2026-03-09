@@ -1,0 +1,93 @@
+# ============================================
+# PostgreSQL Deployment for DSRI
+# ============================================
+# Uses the official postgres:16-alpine image with Ceph persistent storage.
+#
+# To initialize the database:
+#   1. Apply this file: oc apply -f openshift/postgres-deployment.yaml
+#   2. Wait for pod to be ready: oc get pods -l app=neg-postgres
+#   3. Copy init script: oc cp server/db/init.sql <pod-name>:/tmp/init.sql
+#   4. Run it: oc exec <pod-name> -- psql -U neg -d negplatform -f /tmp/init.sql
+#
+# Or create a ConfigMap from init.sql and mount it at /docker-entrypoint-initdb.d/
+# ============================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: neg-postgres-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # DSRI uses Ceph storage; storageClassName may differ per cluster
+  # storageClassName: csi-cephfs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neg-postgres
+  labels:
+    app: neg-postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: neg-postgres
+  template:
+    metadata:
+      labels:
+        app: neg-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: negplatform
+            - name: POSTGRES_USER
+              value: neg
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neg-platform-env
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "neg", "-d", "negplatform"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: neg-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neg-postgres
+  labels:
+    app: neg-postgres
+spec:
+  selector:
+    app: neg-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP
