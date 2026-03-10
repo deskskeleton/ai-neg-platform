@@ -22,6 +22,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
+  storageClassName: ocs-storagecluster-cephfs
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -40,7 +41,11 @@ spec:
     metadata:
       labels:
         app: ollama
+      annotations:
+        io.kubernetes.cri-o.TrySkipVolumeSELinuxLabel: 'true'
     spec:
+      runtimeClassName: selinux
+      serviceAccountName: anyuid
       containers:
         - name: ollama
           image: ollama/ollama

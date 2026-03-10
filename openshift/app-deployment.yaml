@@ -25,7 +25,11 @@ spec:
     metadata:
       labels:
         app: neg-platform
+      annotations:
+        io.kubernetes.cri-o.TrySkipVolumeSELinuxLabel: 'true'
     spec:
+      runtimeClassName: selinux
+      serviceAccountName: anyuid
       containers:
         - name: app
           # Replace with your actual image registry

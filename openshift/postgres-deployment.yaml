@@ -22,8 +22,8 @@ spec:
   resources:
     requests:
       storage: 5Gi
-  # DSRI uses Ceph storage; storageClassName may differ per cluster
-  # storageClassName: csi-cephfs
+  # DSRI uses Ceph storage; storageClassName is ocs-storagecluster-cephfs on DSRI
+  storageClassName: ocs-storagecluster-cephfs
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,7 +42,11 @@ spec:
     metadata:
       labels:
         app: neg-postgres
+      annotations:
+        io.kubernetes.cri-o.TrySkipVolumeSELinuxLabel: 'true'
     spec:
+      runtimeClassName: selinux
+      serviceAccountName: anyuid
       containers:
         - name: postgres
           image: postgres:16-alpine

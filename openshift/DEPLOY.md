@@ -3,12 +3,50 @@
 ## Prerequisites
 
 - Access to DSRI (OpenShift OKD 4.14) with `oc` CLI installed
-- A container registry accessible from DSRI (Docker Hub, UM registry, etc.)
+- Access to the UM network (e.g. UM VPN)
 - A project/namespace on DSRI
+- Optionally: a container registry accessible from DSRI (Docker Hub, UM registry, etc.) if you do **not** use the on-cluster build
 
 ## Step-by-step
 
-### 1. Build and push the app image
+### 1. Log in to DSRI
+
+1. Connect to the UM network (VPN if off-campus).
+2. Open the DSRI OpenShift console: `https://console-openshift-console.apps.dsri2.unimaas.nl`.
+3. Log in with your UM credentials.
+4. In the top-right menu, click **Copy Login Command** and paste it into your terminal. It will look like:
+
+```bash
+oc login https://api.dsri2.unimaas.nl:6443 --token=<your-token>
+```
+
+5. Confirm/select your project:
+
+```bash
+oc project <your-namespace>
+```
+
+Password-only login is not supported; always use the token from the web UI.
+
+### 2. Build the app image
+
+You can either build on the DSRI cluster (recommended) or use an external registry.
+
+**Option A – On-cluster binary build (recommended):**
+
+```bash
+# From the ai-neg-platform directory
+oc new-build --name neg-platform --binary
+oc start-build neg-platform --from-dir=. --follow --wait
+```
+
+This creates an ImageStream named `neg-platform`. In this case, set the image in `openshift/app-deployment.yaml` to:
+
+```yaml
+image: neg-platform:latest
+```
+
+**Option B – External registry:**
 
 ```bash
 # From the ai-neg-platform directory
@@ -16,12 +54,7 @@ docker build -t your-registry/neg-platform:latest .
 docker push your-registry/neg-platform:latest
 ```
 
-### 2. Log in to DSRI
-
-```bash
-oc login https://console.dsri2.unimaas.nl --token=<your-token>
-oc project <your-namespace>
-```
+Then set the image in `openshift/app-deployment.yaml` to that full registry URL.
 
 ### 3. Create the secrets
 
@@ -30,6 +63,8 @@ oc create secret generic neg-platform-env \
   --from-literal=DATABASE_URL=postgresql://neg:YOUR_PASSWORD@neg-postgres:5432/negplatform \
   --from-literal=POSTGRES_PASSWORD=YOUR_PASSWORD
 ```
+
+Make sure this secret exists **before** the PostgreSQL deployment starts, so the pod can read `POSTGRES_PASSWORD`.
 
 ### 4. Deploy PostgreSQL
 
@@ -60,7 +95,7 @@ oc exec $POD -- ollama pull llama3.2:3b
 
 ### 6. Deploy the app server
 
-Update the image in `app-deployment.yaml` to match your registry, then:
+Ensure the image is set correctly in `openshift/app-deployment.yaml` (either `neg-platform:latest` for on-cluster builds or your registry image), then:
 
 ```bash
 oc apply -f openshift/app-deployment.yaml
