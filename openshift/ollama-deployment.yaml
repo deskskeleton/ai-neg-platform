@@ -1,15 +1,18 @@
 # ============================================
 # Ollama LLM Deployment for DSRI
 # ============================================
-# Self-hosted LLM serving via Ollama.
-# On first deploy, exec into the pod and pull the model:
-#   oc exec <pod-name> -- ollama pull llama3.2:3b
+# Currently configured for CPU-only deployment.
+#
+# To switch to GPU:
+#   1. Uncomment nvidia.com/gpu: 1 in resources.limits
+#   2. Uncomment the tolerations block in spec
+#   3. oc apply -f openshift/ollama-deployment.yaml
+#
+# On first deploy, pull the model:
+#   POD=$(oc get pods -l app=ollama -o jsonpath='{.items[0].metadata.name}')
+#   oc exec $POD -- ollama pull llama3.2:3b
 #
 # The PVC ensures the model persists across pod restarts.
-#
-# For GPU access (if available on DSRI):
-#   Add nvidia.com/gpu: 1 to resources.limits
-#   Add the NVIDIA runtime tolerations
 # ============================================
 
 apiVersion: v1
@@ -56,13 +59,18 @@ spec:
               mountPath: /root/.ollama
           resources:
             requests:
-              memory: "4Gi"
+              memory: "2Gi"
               cpu: "2"
             limits:
-              memory: "8Gi"
+              memory: "4Gi"
               cpu: "4"
-              # Uncomment for GPU if available:
+              # GPU: uncomment below and the tolerations block in spec
               # nvidia.com/gpu: 1
+      # GPU: uncomment tolerations when nvidia.com/gpu limit is set
+      # tolerations:
+      #   - key: nvidia.com/gpu
+      #     operator: Exists
+      #     effect: NoSchedule
       volumes:
         - name: models
           persistentVolumeClaim:

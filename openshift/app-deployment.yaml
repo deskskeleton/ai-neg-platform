@@ -5,9 +5,14 @@
 # REST API, and WebSocket connections.
 #
 # Prerequisites:
-#   1. Build and push the image: docker build -t your-registry/neg-platform:latest .
-#   2. Create the secret: oc create secret generic neg-platform-env --from-env-file=server/.env
-#   3. Apply: oc apply -f openshift/app-deployment.yaml
+#   1. Build image on-cluster:
+#        oc new-build --name neg-platform --binary
+#        oc start-build neg-platform --from-dir=.. --follow --wait
+#   2. Image is pre-set to namespace sbe-dad-aineg — no patching needed.
+#   3. Create the secret: oc create secret generic neg-platform-env \
+#        --from-literal=DATABASE_URL=postgresql://neg:YOUR_PASSWORD@neg-postgres:5432/negplatform \
+#        --from-literal=POSTGRES_PASSWORD=YOUR_PASSWORD
+#   4. Apply: oc apply -f openshift/app-deployment.yaml
 # ============================================
 
 apiVersion: apps/v1
@@ -32,8 +37,9 @@ spec:
       serviceAccountName: anyuid
       containers:
         - name: app
-          # Replace with your actual image registry
-          image: your-registry/neg-platform:latest
+          # Built on-cluster via: oc new-build --name neg-platform --binary
+          # Patch after build: oc set image deployment/neg-platform app=image-registry.openshift-image-registry.svc:5000/sbe-dad-aineg/neg-platform:latest
+          image: image-registry.openshift-image-registry.svc:5000/sbe-dad-aineg/neg-platform:latest
           ports:
             - containerPort: 3000
               protocol: TCP
@@ -49,6 +55,11 @@ spec:
               value: "http://ollama:11434"
             - name: LLM_MODEL
               value: "llama3.2"
+            - name: ADMIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: neg-platform-env
+                  key: ADMIN_SECRET
           resources:
             requests:
               memory: "256Mi"
@@ -89,6 +100,8 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: neg-platform
+  annotations:
+    haproxy.router.openshift.io/timeout: 4500s
 spec:
   # Change this to your actual DSRI hostname
   host: neg-platform.apps.dsri2.unimaas.nl

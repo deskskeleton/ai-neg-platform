@@ -15,6 +15,7 @@ RUN npm ci
 COPY . .
 # Set VITE_BACKEND=rest so the built frontend uses the REST adapter
 ENV VITE_BACKEND=rest
+ENV VITE_ADMIN_PASSWORD=umdad2026
 RUN npm run build
 
 # -- Stage 2: Build the Express server --
