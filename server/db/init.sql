@@ -1785,7 +1785,7 @@ BEGIN
     SELECT count(*)::INTEGER INTO v_count
     FROM batch_participants WHERE batch_id = p_batch_id;
 
-    IF v_count NOT IN (6, 18) THEN
+    IF v_count NOT IN (6, 12, 18) THEN
         RETURN;
     END IF;
 
@@ -1822,6 +1822,39 @@ BEGIN
             (p_batch_id, 3, LEAST(v_participant_ids[3], v_participant_ids[6]), GREATEST(v_participant_ids[3], v_participant_ids[6])),
             (p_batch_id, 3, LEAST(v_participant_ids[2], v_participant_ids[4]), GREATEST(v_participant_ids[2], v_participant_ids[4])),
             (p_batch_id, 3, LEAST(v_participant_ids[1], v_participant_ids[5]), GREATEST(v_participant_ids[1], v_participant_ids[5]));
+        RETURN;
+    END IF;
+
+    -- ========== 12 participants (medium batch): 6 pairs per round ==========
+    -- Circle method: fix participant 12, rotate 1-11
+    IF v_count = 12 THEN
+        -- Round 1: (12,1),(2,11),(3,10),(4,9),(5,8),(6,7)
+        INSERT INTO batch_round_assignments (batch_id, round_number, participant_id_1, participant_id_2)
+        VALUES
+            (p_batch_id, 1, LEAST(v_participant_ids[12], v_participant_ids[1]), GREATEST(v_participant_ids[12], v_participant_ids[1])),
+            (p_batch_id, 1, LEAST(v_participant_ids[2], v_participant_ids[11]), GREATEST(v_participant_ids[2], v_participant_ids[11])),
+            (p_batch_id, 1, LEAST(v_participant_ids[3], v_participant_ids[10]), GREATEST(v_participant_ids[3], v_participant_ids[10])),
+            (p_batch_id, 1, LEAST(v_participant_ids[4], v_participant_ids[9]), GREATEST(v_participant_ids[4], v_participant_ids[9])),
+            (p_batch_id, 1, LEAST(v_participant_ids[5], v_participant_ids[8]), GREATEST(v_participant_ids[5], v_participant_ids[8])),
+            (p_batch_id, 1, LEAST(v_participant_ids[6], v_participant_ids[7]), GREATEST(v_participant_ids[6], v_participant_ids[7]));
+        -- Round 2: (12,2),(3,1),(4,11),(5,10),(6,9),(7,8)
+        INSERT INTO batch_round_assignments (batch_id, round_number, participant_id_1, participant_id_2)
+        VALUES
+            (p_batch_id, 2, LEAST(v_participant_ids[12], v_participant_ids[2]), GREATEST(v_participant_ids[12], v_participant_ids[2])),
+            (p_batch_id, 2, LEAST(v_participant_ids[3], v_participant_ids[1]), GREATEST(v_participant_ids[3], v_participant_ids[1])),
+            (p_batch_id, 2, LEAST(v_participant_ids[4], v_participant_ids[11]), GREATEST(v_participant_ids[4], v_participant_ids[11])),
+            (p_batch_id, 2, LEAST(v_participant_ids[5], v_participant_ids[10]), GREATEST(v_participant_ids[5], v_participant_ids[10])),
+            (p_batch_id, 2, LEAST(v_participant_ids[6], v_participant_ids[9]), GREATEST(v_participant_ids[6], v_participant_ids[9])),
+            (p_batch_id, 2, LEAST(v_participant_ids[7], v_participant_ids[8]), GREATEST(v_participant_ids[7], v_participant_ids[8]));
+        -- Round 3: (12,3),(4,2),(5,1),(6,11),(7,10),(8,9)
+        INSERT INTO batch_round_assignments (batch_id, round_number, participant_id_1, participant_id_2)
+        VALUES
+            (p_batch_id, 3, LEAST(v_participant_ids[12], v_participant_ids[3]), GREATEST(v_participant_ids[12], v_participant_ids[3])),
+            (p_batch_id, 3, LEAST(v_participant_ids[4], v_participant_ids[2]), GREATEST(v_participant_ids[4], v_participant_ids[2])),
+            (p_batch_id, 3, LEAST(v_participant_ids[5], v_participant_ids[1]), GREATEST(v_participant_ids[5], v_participant_ids[1])),
+            (p_batch_id, 3, LEAST(v_participant_ids[6], v_participant_ids[11]), GREATEST(v_participant_ids[6], v_participant_ids[11])),
+            (p_batch_id, 3, LEAST(v_participant_ids[7], v_participant_ids[10]), GREATEST(v_participant_ids[7], v_participant_ids[10])),
+            (p_batch_id, 3, LEAST(v_participant_ids[8], v_participant_ids[9]), GREATEST(v_participant_ids[8], v_participant_ids[9]));
         RETURN;
     END IF;
 
@@ -1867,7 +1900,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-COMMENT ON FUNCTION generate_batch_round_schedule IS 'Pre-seed round schedule for 6 (test) or 18 (full) participants (circle method); idempotent.';
+COMMENT ON FUNCTION generate_batch_round_schedule IS 'Pre-seed round schedule for 6, 12, or 18 participants (circle method); idempotent.';
 
 
 -- ============================================================

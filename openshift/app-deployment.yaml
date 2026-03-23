@@ -5,8 +5,8 @@
 # REST API, and WebSocket connections.
 #
 # Prerequisites:
-#   1. Build and push the image: docker build -t your-registry/neg-platform:latest .
-#   2. Create the secret: oc create secret generic neg-platform-env --from-env-file=server/.env
+#   1. Build and push: docker build -t ghcr.io/YOUR_GITHUB_USERNAME/neg-platform:latest . && docker push ...
+#   2. Create secret: oc create secret generic neg-platform-env --from-literal=DATABASE_URL=... --from-literal=POSTGRES_PASSWORD=... --from-literal=ADMIN_PASSWORD=...
 #   3. Apply: oc apply -f openshift/app-deployment.yaml
 # ============================================
 
@@ -26,10 +26,13 @@ spec:
       labels:
         app: neg-platform
     spec:
+      # Uncomment if your ghcr.io image is private:
+      # imagePullSecrets:
+      #   - name: ghcr-pull-secret
       containers:
         - name: app
-          # Replace with your actual image registry
-          image: your-registry/neg-platform:latest
+          # Replace YOUR_GITHUB_USERNAME with your actual GitHub username
+          image: ghcr.io/YOUR_GITHUB_USERNAME/neg-platform:latest
           ports:
             - containerPort: 3000
               protocol: TCP
@@ -45,6 +48,11 @@ spec:
               value: "http://ollama:11434"
             - name: LLM_MODEL
               value: "llama3.2"
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: neg-platform-env
+                  key: ADMIN_PASSWORD
           resources:
             requests:
               memory: "256Mi"
@@ -85,6 +93,9 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: neg-platform
+  annotations:
+    # Extend timeout for WebSocket connections (negotiation sessions last 10+ minutes)
+    haproxy.router.openshift.io/timeout: 900s
 spec:
   # Change this to your actual DSRI hostname
   host: neg-platform.apps.dsri2.unimaas.nl

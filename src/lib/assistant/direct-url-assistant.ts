@@ -1,6 +1,8 @@
 /**
  * Assistant client that calls the self-hosted Express server's LLM proxy.
  * Set VITE_ASSISTANT_API_URL to point to the server (e.g. http://localhost:3000/api/assistant/query).
+ * When served from the same origin (Docker/DSRI), leave VITE_ASSISTANT_API_URL empty —
+ * it falls back to `/api/assistant/query` (relative).
  *
  * Expected API: POST to VITE_ASSISTANT_API_URL with body
  * { sessionId, participantId, query, conversationHistory }
@@ -14,7 +16,7 @@ const baseUrl = import.meta.env.VITE_ASSISTANT_API_URL as string | undefined
 
 function getDirectUrl(): string {
   if (!baseUrl || baseUrl === '') {
-    throw new Error('VITE_ASSISTANT_API_URL is not set. Set it to your local assistant API URL (e.g. http://localhost:3001/query).')
+    return '/api/assistant/query'
   }
   return baseUrl.replace(/\/$/, '')
 }

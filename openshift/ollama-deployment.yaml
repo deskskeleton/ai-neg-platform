@@ -7,9 +7,9 @@
 #
 # The PVC ensures the model persists across pod restarts.
 #
-# For GPU access (if available on DSRI):
-#   Add nvidia.com/gpu: 1 to resources.limits
-#   Add the NVIDIA runtime tolerations
+# GPU is enabled (nvidia.com/gpu: 1 in both requests and limits).
+# Book GPU time via DSRI calendar before deploying.
+# If GPU nodes have custom taints, uncomment the tolerations block below.
 # ============================================
 
 apiVersion: v1
@@ -53,11 +53,16 @@ spec:
             requests:
               memory: "4Gi"
               cpu: "2"
+              nvidia.com/gpu: 1
             limits:
               memory: "8Gi"
               cpu: "4"
-              # Uncomment for GPU if available:
-              # nvidia.com/gpu: 1
+              nvidia.com/gpu: 1
+      # Uncomment if DSRI GPU nodes have custom taints:
+      # tolerations:
+      #   - key: "nvidia.com/gpu"
+      #     operator: "Exists"
+      #     effect: "NoSchedule"
       volumes:
         - name: models
           persistentVolumeClaim:

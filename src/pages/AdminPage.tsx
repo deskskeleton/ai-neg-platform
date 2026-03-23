@@ -223,7 +223,7 @@ function AdminPage() {
   // Session Actions
   // ============================================
 
-  /** Create a batch (18 = full run, 6 = test batch with pre-seeded matching). */
+  /** Create a batch (6, 12, or 18 participants with pre-seeded matching). */
   async function onCreateBatch(maxParticipants: number) {
     setIsCreating(true)
     setError(null)
@@ -731,6 +731,14 @@ function AdminPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => onCreateBatch(12)}
+                  disabled={isCreating}
+                  className="btn-primary w-full bg-primary-500 hover:bg-primary-600"
+                >
+                  {isCreating ? 'Creating...' : 'Create batch (12 participants)'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => onCreateBatch(6)}
                   disabled={isCreating}
                   className="btn-secondary w-full border border-primary-200 text-primary-700 hover:bg-primary-50"
@@ -942,7 +950,7 @@ function AdminPage() {
                   )}
                 </div>
                 {batches.length === 0 ? (
-                  <p className="text-neutral-600 mb-4">No batches yet. Create a batch for participants to join (up to 18 per batch).</p>
+                  <p className="text-neutral-600 mb-4">No batches yet. Create a batch for participants to join (6, 12, or 18 per batch).</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
