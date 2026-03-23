@@ -197,7 +197,12 @@ See `openshift/DEPLOY.md` for step-by-step instructions to deploy on the univers
 
 1. **App server** — serves the React frontend and REST API
 2. **PostgreSQL** — persistent data storage (Ceph PV)
-3. **Ollama** — self-hosted LLM with persistent model storage
+3. **Ollama** — self-hosted LLM with persistent model storage (CPU by default; GPU toleration commented in manifest)
+
+**Production notes:**
+- `VITE_ADMIN_PASSWORD` must be set at build time (baked into the frontend bundle); the server also requires `ADMIN_SECRET` for the server-side admin route guard
+- The HAProxy route timeout is set to 4500 s (75 min) to cover hour-long WebSocket sessions
+- The image is built on-cluster in the `sbe-dad-aineg` namespace — no external registry required (see `DEPLOY.md`)
 
 ## Data Export
 
@@ -212,7 +217,15 @@ For bulk export or backups, use `server/scripts/backup.sh` which runs `pg_dump` 
 
 For pool-based runs (batch code entry, multiple participants): use an **even number** of participants per batch. Pairing is one-to-one each round; an odd count leaves one participant unmatched. Plan accordingly.
 
-With 18 participants, the platform pre-seeds the round schedule when the 18th joins. Everyone is guaranteed a partner each round as long as all tabs reach the round lobby. If one tab is stuck waiting, the paired tab hasn't reached that round's lobby yet.
+Supported pre-seeded batch sizes:
+
+| Size | Pairs/round | Method |
+|------|-------------|--------|
+| **12** | 6 | Circle method (fix p12, rotate p1–p11) — no repeat opponents across 3 rounds |
+| **18** | 9 | Circle method — no repeat opponents across 3 rounds |
+| **6** | 3 | Manual schedule |
+
+The round schedule is pre-seeded when the last participant joins. Everyone is guaranteed a partner each round as long as all tabs reach the round lobby. If one tab is stuck waiting, the paired tab hasn't reached that round's lobby yet.
 
 ## Scripts
 
