@@ -731,9 +731,17 @@ function AdminPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => onCreateBatch(6)}
+                  onClick={() => onCreateBatch(12)}
                   disabled={isCreating}
                   className="btn-secondary w-full border border-primary-200 text-primary-700 hover:bg-primary-50"
+                >
+                  {isCreating ? 'Creating...' : 'Create batch (12 participants)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCreateBatch(6)}
+                  disabled={isCreating}
+                  className="btn-secondary w-full border border-neutral-200 text-neutral-600 hover:bg-neutral-50"
                 >
                   {isCreating ? 'Creating...' : 'Create test batch (6 participants)'}
                 </button>
