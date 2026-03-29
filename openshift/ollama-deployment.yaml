@@ -1,12 +1,18 @@
 # ============================================
 # Ollama LLM Deployment for DSRI
 # ============================================
-# Currently configured for CPU-only deployment.
+# Default: CPU-only (GPU cores are time-limited and booked separately).
 #
-# To switch to GPU:
-#   1. Uncomment nvidia.com/gpu: 1 in resources.limits
-#   2. Uncomment the tolerations block in spec
+# To enable GPU (after booking a GPU node):
+#   1. Uncomment `nvidia.com/gpu: 1` in resources.limits below
+#   2. Uncomment the tolerations block in spec below
 #   3. oc apply -f openshift/ollama-deployment.yaml
+#   4. oc rollout restart deployment/ollama
+#
+# To revert to CPU (after GPU booking expires):
+#   1. Comment out nvidia.com/gpu: 1 and the tolerations block
+#   2. oc apply -f openshift/ollama-deployment.yaml
+#   3. oc rollout restart deployment/ollama
 #
 # On first deploy, pull the model:
 #   POD=$(oc get pods -l app=ollama -o jsonpath='{.items[0].metadata.name}')
@@ -64,10 +70,20 @@ spec:
             limits:
               memory: "4Gi"
               cpu: "4"
-              # GPU: uncomment below and the tolerations block in spec
-              # nvidia.com/gpu: 1
-      # GPU: uncomment tolerations when nvidia.com/gpu limit is set
-      # tolerations:
+              # nvidia.com/gpu: 1   # Uncomment when GPU node is booked
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 60
+      # tolerations:                    # Uncomment when GPU node is booked
       #   - key: nvidia.com/gpu
       #     operator: Exists
       #     effect: NoSchedule

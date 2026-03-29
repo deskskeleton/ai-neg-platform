@@ -152,6 +152,7 @@ function IssueSelector({
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-slate-700">
+        <span className="text-slate-400 mr-1">{issue.id}.</span>
         {issue.label}
         {issue.description && (
           <span className="font-normal text-slate-500 ml-1">

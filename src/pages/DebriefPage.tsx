@@ -14,7 +14,9 @@
 import { useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { CheckCircle, Mail, Shield, FileText, ExternalLink, Copy } from 'lucide-react';
-import { getParticipant, generateCompletionCode } from '@/lib/data';
+import { getParticipant, generateCompletionCode, getRoundSessionsForParticipant, getSessionParticipantByIds, getSession } from '@/lib/data';
+import { getScenarioById, calculatePoints, getRoleKey } from '@/config/scenarios';
+import { getRoundLabel } from '@/utils/roundLabels';
 
 // ============================================
 // DEBRIEF CONFIGURATION
@@ -90,6 +92,8 @@ function DebriefPage() {
   const [completionCode, setCompletionCode] = useState<string | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [roundPoints, setRoundPoints] = useState<Array<{ round: number; scenario?: string; points: number; agreed: boolean }>>([]);
+  const [totalPoints, setTotalPoints] = useState<number>(0);
 
   useEffect(() => {
     if (!participantId) return;
@@ -108,6 +112,50 @@ function DebriefPage() {
     })();
     return () => { cancelled = true };
   }, [participantId]);
+
+  // Load points from all round sessions
+  useEffect(() => {
+    if (!participantId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Try loading round sessions (batch experiment)
+        const roundSessions = await getRoundSessionsForParticipant(participantId);
+        if (cancelled) return;
+        if (roundSessions.length > 0) {
+          const pts: Array<{ round: number; scenario?: string; points: number; agreed: boolean }> = [];
+          let total = 0;
+          for (const rs of roundSessions) {
+            const sp = await getSessionParticipantByIds(rs.id, participantId);
+            const sc = getScenarioById(rs.negotiation_scenario);
+            if (sp && rs.agreement_reached && rs.final_agreement) {
+              const rk = getRoleKey(sp.role, sc);
+              const p = rk ? calculatePoints(rs.final_agreement as Record<string, number>, rk, sc) : 0;
+              pts.push({ round: rs.round_number ?? 0, scenario: rs.negotiation_scenario ?? undefined, points: p, agreed: true });
+              total += p;
+            } else {
+              pts.push({ round: rs.round_number ?? 0, scenario: rs.negotiation_scenario ?? undefined, points: 0, agreed: false });
+            }
+          }
+          if (!cancelled) { setRoundPoints(pts); setTotalPoints(total); }
+        } else if (sessionId) {
+          // Single session mode
+          const sess = await getSession(sessionId);
+          if (cancelled || !sess) return;
+          const sp = await getSessionParticipantByIds(sessionId, participantId);
+          const sc = getScenarioById(sess.negotiation_scenario);
+          if (sp && sess.agreement_reached && sess.final_agreement) {
+            const rk = getRoleKey(sp.role, sc);
+            const p = rk ? calculatePoints(sess.final_agreement as Record<string, number>, rk, sc) : 0;
+            if (!cancelled) { setRoundPoints([{ round: 1, points: p, agreed: true }]); setTotalPoints(p); }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load points:', e);
+      }
+    })();
+    return () => { cancelled = true };
+  }, [participantId, sessionId]);
 
   const copyCode = () => {
     if (completionCode) {
@@ -173,6 +221,28 @@ function DebriefPage() {
           <p className="text-amber-800 mb-4">
             {DEBRIEF_CONFIG.payment.instructions}
           </p>
+          {/* Per-round points breakdown */}
+          {roundPoints.length > 0 && (
+            <div className="mb-4 p-3 bg-amber-100/50 border border-amber-200 rounded-lg">
+              <p className="text-sm font-medium text-amber-900 mb-2">Your Points</p>
+              <div className="space-y-1 mb-2">
+                {roundPoints.map((rp) => (
+                  <div key={rp.round} className="flex justify-between text-sm">
+                    <span className="text-amber-800">{getRoundLabel(rp.scenario) || `Round ${rp.round}`}:</span>
+                    {rp.agreed ? (
+                      <span className="font-medium text-amber-900">{rp.points} pts</span>
+                    ) : (
+                      <span className="text-amber-600">No agreement (0 pts)</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="pt-2 border-t border-amber-200 flex justify-between text-sm font-bold">
+                <span className="text-amber-900">Total:</span>
+                <span className="text-amber-900">{totalPoints} pts</span>
+              </div>
+            </div>
+          )}
           {completionCode && (
             <div className="mb-4 p-3 bg-amber-100 border border-amber-300 rounded-lg">
               <p className="text-sm font-medium text-amber-900 mb-1">Your completion code (for BEELab):</p>

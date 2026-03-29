@@ -1,0 +1,31 @@
+# ============================================
+# Docker Compose TEST override
+# ============================================
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up --build
+#
+# Changes from base:
+#   - Disables Ollama (OLLAMA_URL="") so LLM is not required
+#   - Clears ADMIN_SECRET so admin routes need no auth header
+#   - DB uses tmpfs so data is ephemeral (wiped on container stop)
+#   - Ollama service is removed
+# ============================================
+
+services:
+  app:
+    environment:
+      OLLAMA_URL: ""
+      LLM_MODEL: ""
+      ADMIN_SECRET: ""
+
+  db:
+    volumes:
+      - type: tmpfs
+        target: /var/lib/postgresql/data
+      - ./server/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # Override ollama to a no-op so 'depends_on' in app still resolves
+  ollama:
+    image: alpine:3.19
+    command: ["sh", "-c", "echo 'ollama disabled in test' && sleep infinity"]
+    restart: "no"

@@ -113,8 +113,8 @@ export function PayoffReference({
                 
                 return (
                   <tr key={issue.id} className="border-b border-slate-100 last:border-0">
-                    <td className="py-1 px-1 font-medium text-slate-700 truncate" title={issue.label}>
-                      {issue.label.split(' ')[0]}
+                    <td className="py-1 px-1 font-medium text-slate-700" title={issue.label}>
+                      <span className="text-slate-400 mr-1">{issue.id}.</span>{issue.label}
                     </td>
                     {issue.options.map((option, idx) => {
                       const points = payoffs[idx] ?? 0;

@@ -119,11 +119,12 @@ function AdminPage() {
   // Data Fetching - MUST be before any conditional returns
   // ============================================
 
-  // Fetch all sessions when authenticated
+  // Fetch all sessions when authenticated, and auto-refresh every 15 seconds
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchSessions()
-    }
+    if (!isAuthenticated) return
+    fetchSessions(true)
+    const interval = setInterval(() => fetchSessions(false), 15_000)
+    return () => clearInterval(interval)
   }, [isAuthenticated])
 
   // ============================================
@@ -182,8 +183,8 @@ function AdminPage() {
     )
   }
 
-  async function fetchSessions() {
-    setIsLoading(true)
+  async function fetchSessions(showLoading = true) {
+    if (showLoading) setIsLoading(true)
     setError(null)
 
     try {
@@ -636,7 +637,7 @@ function AdminPage() {
             </div>
             <div className="flex gap-3">
               <button 
-                onClick={fetchSessions}
+                onClick={() => fetchSessions(true)}
                 className="btn-secondary flex items-center gap-2"
                 disabled={isLoading}
               >

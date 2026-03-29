@@ -1031,7 +1031,7 @@ BEGIN
                     v_participant_id, v_condition;
             END IF;
 
-            PERFORM create_one_pool_session(v_participant_id, v_partner_id, p_slot_index, v_condition);
+            PERFORM create_one_pool_session(v_participant_id, v_partner_id, p_slot_index, v_condition, (p_slot_index % 2 = 0));
 
             v_sessions_created := v_sessions_created + 1;
 
@@ -1050,18 +1050,31 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON FUNCTION match_batch_for_round IS 'Batch matchmaking: match all queued participants for a round (same condition, no past opponent); returns sessions created';
 
 -- Helper: create one pool session for two participants
+-- p_swap_roles: when TRUE, reverses role assignment (p_participant_id gets 'developer')
 CREATE OR REPLACE FUNCTION create_one_pool_session(
     p_participant_id UUID,
     p_partner_id UUID,
     p_slot_index INTEGER,
-    p_condition TEXT
+    p_condition TEXT,
+    p_swap_roles BOOLEAN DEFAULT FALSE
 ) RETURNS UUID AS $$
 DECLARE
     v_dyad_id UUID;
     v_session_code TEXT;
     v_session_id UUID;
+    v_role1 TEXT;
+    v_role2 TEXT;
 BEGIN
     v_dyad_id := uuid_generate_v4();
+
+    -- Alternate roles: swap on even rounds so participants don't always get the same role
+    IF p_swap_roles THEN
+        v_role1 := 'developer';
+        v_role2 := 'pm';
+    ELSE
+        v_role1 := 'pm';
+        v_role2 := 'developer';
+    END IF;
 
     LOOP
         v_session_code := generate_session_code();
@@ -1081,14 +1094,14 @@ BEGIN
 
     INSERT INTO session_participants (session_id, participant_id, role, treatment_condition)
     VALUES
-        (v_session_id, p_participant_id, 'pm', 'payoff_always_visible'),
-        (v_session_id, p_partner_id, 'developer', 'payoff_collapsible');
+        (v_session_id, p_participant_id, v_role1, 'payoff_always_visible'),
+        (v_session_id, p_partner_id, v_role2, 'payoff_collapsible');
 
     RETURN v_session_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-COMMENT ON FUNCTION create_one_pool_session IS 'Creates one pool round session for two participants; used by match_batch_for_round';
+COMMENT ON FUNCTION create_one_pool_session IS 'Creates one pool round session for two participants; p_swap_roles alternates role assignment across rounds';
 
 
 -- ============================================================
@@ -1239,7 +1252,7 @@ BEGIN
                 CONTINUE;
             END IF;
 
-            PERFORM create_one_pool_session(v_participant_id, v_partner_id, p_slot_index, v_condition);
+            PERFORM create_one_pool_session(v_participant_id, v_partner_id, p_slot_index, v_condition, (p_slot_index % 2 = 0));
             v_sessions_created := v_sessions_created + 1;
 
             DELETE FROM round_queue
@@ -1295,7 +1308,8 @@ BEGIN
         RAISE EXCEPTION 'Batch is full';
     END IF;
 
-    v_perm_index := (v_count / 2) % 6;
+    -- Assign unique condition_order per participant (cycle through 6 permutations)
+    v_perm_index := v_count % 6;
 
     v_condition_order := CASE v_perm_index
         WHEN 0 THEN '["v1.a","v1.b","v1.c"]'::JSONB
@@ -1314,7 +1328,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-COMMENT ON FUNCTION join_batch_atomic IS 'Atomic batch join: assigns condition order in pairs so every round has even condition counts; prevents one participant left waiting when many join at once.';
+COMMENT ON FUNCTION join_batch_atomic IS 'Atomic batch join: assigns unique condition order per participant (6 permutations); generates pre-seeded schedule when batch is full.';
 
 
 -- ============================================================
@@ -1411,7 +1425,7 @@ BEGIN
                 CONTINUE;
             END IF;
 
-            PERFORM create_one_pool_session(v_participant_id, v_partner_id, p_slot_index, v_condition);
+            PERFORM create_one_pool_session(v_participant_id, v_partner_id, p_slot_index, v_condition, (p_slot_index % 2 = 0));
             v_sessions_created := v_sessions_created + 1;
 
             DELETE FROM round_queue
@@ -1452,7 +1466,7 @@ BEGIN
               AND s.round_number IS NOT NULL
               AND s.round_number < p_slot_index
         ) THEN
-            PERFORM create_one_pool_session(v_p1_id, v_p2_id, p_slot_index, v_p1_condition);
+            PERFORM create_one_pool_session(v_p1_id, v_p2_id, p_slot_index, v_p1_condition, (p_slot_index % 2 = 0));
             v_sessions_created := v_sessions_created + 1;
             DELETE FROM round_queue
             WHERE participant_id IN (v_p1_id, v_p2_id) AND round_number = p_slot_index;
@@ -1650,11 +1664,13 @@ BEGIN
         v_condition := 'v1.a';
     END IF;
 
+    -- Swap roles on even rounds so participants alternate between pm/developer
     v_session_id := create_one_pool_session(
         LEAST(p_participant_id, v_partner_id)::UUID,
         GREATEST(p_participant_id, v_partner_id)::UUID,
         p_round_number,
-        v_condition
+        v_condition,
+        (p_round_number % 2 = 0)  -- swap roles on round 2
     );
 
     DELETE FROM round_queue
@@ -1712,7 +1728,8 @@ BEGIN
         RAISE EXCEPTION 'Batch is full';
     END IF;
 
-    v_perm_index := (v_count / 2) % 6;
+    -- Assign unique condition_order per participant (cycle through 6 permutations)
+    v_perm_index := v_count % 6;
     v_condition_order := CASE v_perm_index
         WHEN 0 THEN '["v1.a","v1.b","v1.c"]'::JSONB
         WHEN 1 THEN '["v1.a","v1.c","v1.b"]'::JSONB

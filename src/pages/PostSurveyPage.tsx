@@ -43,9 +43,8 @@ import type { Json, Message, Session } from '@/types/database.types';
 const SURVEY_CONFIG = {
   sections: [
     'Workload',
-    'AI Assistant',  // State Trust - new section
+    'AI Assistant',  // State Trust
     'Outcomes',
-    'Relationship',
     'Feedback',
   ],
   
@@ -111,40 +110,41 @@ const likertOrNA = z.number().refine(
 // Helper: validates a standard Likert scale value (1-7)
 const likertScale = z.number().min(1).max(7);
 
+// Final survey schema: only non-round-dependent items
+// SVI Relationship + comprehension check are now per-round (in postRoundSchema)
 const surveySchema = z.object({
   // NASA-TLX (1-7 scale, adapted from standard 21-point to align with Likert)
   mental_demand: likertScale,
   effort: likertScale,
-  
+
   // State Trust in AI Assistant (1-7, measured after negotiation)
   state_ai1: likertScale,
   state_ai2: likertScale,
   state_ai3: likertScale,
-  
+
   // SVI Instrumental (1-7 or N/A for agreement-related items)
   svi_satisfaction: likertOrNA,  // N/A allowed
   svi_balance: likertOrNA,       // N/A allowed
   svi_forfeit: likertScale,      // No N/A - can answer even without agreement
   svi_legitimacy: likertOrNA,    // N/A allowed
-  
-  // SVI Relationship (1-7)
-  svi_relationship: likertScale,
-  svi_respect: likertScale,
-  svi_again: likertScale,
-  svi_constructive: likertScale,
-  
-  // Comprehension check
-  role_check: z.string().min(1, 'Please select your role'),
-  agreement_check: z.string().min(1, 'Please indicate if you reached an agreement'),
-  
+
   // Open feedback (optional)
   feedback: z.string().optional(),
 });
 
 type SurveyData = z.infer<typeof surveySchema>;
 
-/** Minimal post-round schema: 1 item only (opponent priority guess) */
-const minimalPostRoundSchema = z.object({
+/** Per-round post-survey schema: relationship + comprehension + opponent priority guess */
+const postRoundSchema = z.object({
+  // SVI Relationship (per-round feelings about this round's counterpart)
+  svi_relationship: likertScale,
+  svi_respect: likertScale,
+  svi_again: likertScale,
+  svi_constructive: likertScale,
+  // Comprehension check
+  role_check: z.string().min(1, 'Please select your role'),
+  agreement_check: z.string().min(1, 'Please indicate if you reached an agreement'),
+  // Opponent priority guess
   opponent_priority_guess: z.enum(['I1', 'I2', 'I3', 'I4']),
 });
 
@@ -172,8 +172,9 @@ function PostSurveyPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [canSubmit, setCanSubmit] = useState(false); // Prevent accidental immediate submission
 
-  /** Minimal mode: opponent priority guess (I1, I2, I3, I4) */
+  /** Per-round mode: form values */
   const [opponentPriorityGuess, setOpponentPriorityGuess] = useState<string | null>(null);
+  const [roundSurveyValues, setRoundSurveyValues] = useState<Record<string, number | string | undefined>>({});
   
   // Chat history state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -188,6 +189,8 @@ function PostSurveyPage() {
   // Points display state
   const [session, setSession] = useState<Session | null>(null);
   const [pointsEarned, setPointsEarned] = useState<number | null>(null);
+  /** Per-round points for final survey display */
+  const [roundPoints, setRoundPoints] = useState<Array<{ round: number; scenario?: string; points: number | null; agreed: boolean }>>([]);
   
   const totalSections = SURVEY_CONFIG.sections.length;
   
@@ -206,25 +209,39 @@ function PostSurveyPage() {
             ? await getRoundSessionsByPairSessionId(pairSessionId)
             : await getRoundSessionsForParticipant(participantId);
           const grouped: Array<{ round: number; scenario?: string; messages: Message[] }> = [];
+          const perRoundPoints: Array<{ round: number; scenario?: string; points: number | null; agreed: boolean }> = [];
+          let totalPoints = 0;
+          let anyAgreement = false;
+
           for (const rs of roundSessions) {
             const msgs = await getSessionMessages(rs.id);
             grouped.push({ round: rs.round_number ?? 0, scenario: rs.negotiation_scenario ?? undefined, messages: msgs });
+
+            // Calculate points per round
+            const sp = await getSessionParticipantByIds(rs.id, participantId);
+            const sc = getScenarioById(rs.negotiation_scenario);
+            if (sp && rs.agreement_reached && rs.final_agreement) {
+              const rk = getRoleKey(sp.role, sc);
+              const pts = rk ? calculatePoints(rs.final_agreement as Record<string, number>, rk, sc) : 0;
+              perRoundPoints.push({ round: rs.round_number ?? 0, scenario: rs.negotiation_scenario ?? undefined, points: pts, agreed: true });
+              totalPoints += pts;
+              anyAgreement = true;
+            } else {
+              perRoundPoints.push({ round: rs.round_number ?? 0, scenario: rs.negotiation_scenario ?? undefined, points: 0, agreed: false });
+            }
           }
+
           setMessagesByRound(grouped);
           setMessages([]);
+          setRoundPoints(perRoundPoints);
+          if (anyAgreement) {
+            setPointsEarned(totalPoints);
+          }
           if (roundSessions.length > 0) {
             const first = roundSessions[0];
             setSession(first);
             const scenarioConfig = getScenarioById(first.negotiation_scenario);
             setScenario(scenarioConfig);
-            const sp = await getSessionParticipantByIds(first.id, participantId);
-            if (sp && first.agreement_reached && first.final_agreement) {
-              const roleKey = getRoleKey(sp.role, scenarioConfig);
-              if (roleKey) {
-                const agreement = first.final_agreement as Record<string, number>;
-                setPointsEarned(calculatePoints(agreement, roleKey, scenarioConfig));
-              }
-            }
           }
           setIsLoadingChat(false);
           return;
@@ -304,8 +321,7 @@ function PostSurveyPage() {
       case 1: return ['mental_demand', 'effort'];
       case 2: return ['state_ai1', 'state_ai2', 'state_ai3'];  // State Trust
       case 3: return ['svi_satisfaction', 'svi_balance', 'svi_forfeit', 'svi_legitimacy'];  // Outcomes
-      case 4: return ['svi_relationship', 'svi_respect', 'svi_again', 'svi_constructive', 'role_check', 'agreement_check'];  // Relationship
-      case 5: return []; // Feedback is optional
+      case 4: return []; // Feedback is optional
       default: return [];
     }
   };
@@ -345,15 +361,18 @@ function PostSurveyPage() {
   // SUBMISSION
   // ============================================
   
-  /** Minimal mode submit: save opponent_priority_guess, redirect to next round or final survey */
+  /** Per-round submit: save relationship + comprehension + opponent priority, redirect to next round or final survey */
   const onSubmitMinimal = async () => {
     if (!participantId || round === null || (!pairSessionId && !batchId)) {
       setSubmitError('Missing participant, round, or batch/pair session');
       return;
     }
-    const parsed = minimalPostRoundSchema.safeParse({ opponent_priority_guess: opponentPriorityGuess });
+    const parsed = postRoundSchema.safeParse({
+      ...roundSurveyValues,
+      opponent_priority_guess: opponentPriorityGuess,
+    });
     if (!parsed.success) {
-      setSubmitError('Please select which issue was most important to your opponent');
+      setSubmitError('Please complete all required fields before continuing.');
       return;
     }
 
@@ -364,7 +383,19 @@ function PostSurveyPage() {
       const existing = (p?.post_round_survey_data as Record<string, unknown>) ?? {};
       const merged = {
         ...existing,
-        [String(round)]: { opponent_priority_guess: parsed.data.opponent_priority_guess },
+        [String(round)]: {
+          svi_relationship: {
+            strengthened: parsed.data.svi_relationship,
+            respected: parsed.data.svi_respect,
+            willing_again: parsed.data.svi_again,
+            constructive: parsed.data.svi_constructive,
+          },
+          comprehension_check: {
+            role: parsed.data.role_check,
+            reached_agreement: parsed.data.agreement_check === 'yes',
+          },
+          opponent_priority_guess: parsed.data.opponent_priority_guess,
+        },
       };
       await updateParticipant(participantId, {
         post_round_survey_data: merged as unknown as Json,
@@ -435,16 +466,8 @@ function PostSurveyPage() {
             legitimacy: valueOrNull(data.svi_legitimacy),
             legitimacy_is_na: data.svi_legitimacy === NA_VALUE,
           },
-          relationship: {
-            strengthened: data.svi_relationship,
-            respected: data.svi_respect,
-            willing_again: data.svi_again,
-            constructive: data.svi_constructive,
-          },
-        },
-        comprehension_check: {
-          role: data.role_check,
-          reached_agreement: data.agreement_check === 'yes',
+          // Note: SVI Relationship and comprehension check are now per-round
+          // (stored in post_round_survey_data for each round)
         },
         feedback: data.feedback || null,
         completed_at: new Date().toISOString(),
@@ -550,65 +573,13 @@ function PostSurveyPage() {
     </QuestionSection>
   );
   
-  const renderRelationshipSection = () => (
-    <QuestionSection
-      title="Relationship & Process"
-      sectionNumber={4}
-      description="Please rate your experience with your negotiation partner."
-    >
-      {SURVEY_CONFIG.sviRelationshipItems.map((item) => (
-        <LikertScale
-          key={item.id}
-          question={item.text}
-          min={1}
-          max={7}
-          minLabel="Not at all"
-          maxLabel="Perfectly"
-          value={formValues[item.id as keyof SurveyData] as number}
-          onChange={(val) => setValue(item.id as keyof SurveyData, val)}
-          required
-          error={!!errors[item.id as keyof SurveyData]}
-          errorMessage="Please select a response"
-        />
-      ))}
-      
-      {/* Comprehension Check */}
-      <div className="mt-8 pt-6 border-t border-slate-200">
-        <h3 className="text-sm font-medium text-slate-700 mb-4">Comprehension Check</h3>
-        
-        <RadioGroup
-          label="What was your role in the negotiation?"
-          options={[
-            { value: scenario.roles.roleA.id, label: scenario.roles.roleA.label },
-            { value: scenario.roles.roleB.id, label: scenario.roles.roleB.label },
-          ]}
-          value={formValues.role_check}
-          onChange={(val) => setValue('role_check', val)}
-          required
-          error={!!errors.role_check}
-          errorMessage={errors.role_check?.message}
-        />
-        
-        <RadioGroup
-          label="Did you and your partner reach an agreement?"
-          options={[
-            { value: 'yes', label: 'Yes, we reached an agreement' },
-            { value: 'no', label: 'No, we did not reach an agreement' },
-          ]}
-          value={formValues.agreement_check}
-          onChange={(val) => setValue('agreement_check', val)}
-          required
-          error={!!errors.agreement_check}
-          errorMessage={errors.agreement_check?.message}
-        />
-      </div>
-    </QuestionSection>
-  );
-  
+  // Note: renderRelationshipSection removed — SVI Relationship and comprehension
+  // check are now per-round (in the minimal/per-round survey mode above)
+
   const renderFeedbackSection = () => (
     <QuestionSection
       title="Additional Feedback"
-      sectionNumber={5}
+      sectionNumber={4}
       description="Your feedback helps us improve future experiments. (Optional)"
     >
       <TextInput
@@ -628,19 +599,12 @@ function PostSurveyPage() {
       case 1: return renderWorkloadSection();
       case 2: return renderStateTrustSection();
       case 3: return renderInstrumentalSection();
-      case 4: return renderRelationshipSection();
-      case 5: return renderFeedbackSection();
+      case 4: return renderFeedbackSection();
       default: return null;
     }
   };
 
-  /** Opponent priority guess options for minimal post-round survey */
-  const OPPONENT_PRIORITY_OPTIONS = [
-    { value: 'I1', label: 'Issue 1' },
-    { value: 'I2', label: 'Issue 2' },
-    { value: 'I3', label: 'Issue 3' },
-    { value: 'I4', label: 'Issue 4' },
-  ];
+  // Opponent priority guess options are now constructed inline using scenario.issues
 
   // ============================================
   // MINIMAL MODE RENDER (round 1/2/3: 1 item only)
@@ -684,11 +648,57 @@ function PostSurveyPage() {
             </div>
           </header>
           <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
+            {/* SVI Relationship (per-round) */}
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-              <QuestionSection title="Opponent Priority" sectionNumber={1} description="Which issue do you think was most important to your opponent?">
+              <QuestionSection title="Relationship & Process" sectionNumber={1} description="Please rate your experience with your negotiation partner in this round.">
+                {SURVEY_CONFIG.sviRelationshipItems.map((item) => (
+                  <LikertScale
+                    key={item.id}
+                    question={item.text}
+                    min={1}
+                    max={7}
+                    minLabel="Not at all"
+                    maxLabel="Perfectly"
+                    value={roundSurveyValues[item.id] as number}
+                    onChange={(val) => setRoundSurveyValues(prev => ({ ...prev, [item.id]: val }))}
+                    required
+                  />
+                ))}
+              </QuestionSection>
+            </div>
+
+            {/* Comprehension Check (per-round) */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+              <QuestionSection title="Comprehension Check" sectionNumber={2} description="Please confirm your understanding of this round.">
+                <RadioGroup
+                  label="What was your role in this round?"
+                  options={[
+                    { value: scenario.roles.roleA.id, label: scenario.roles.roleA.label },
+                    { value: scenario.roles.roleB.id, label: scenario.roles.roleB.label },
+                  ]}
+                  value={(roundSurveyValues.role_check as string) ?? ''}
+                  onChange={(val) => setRoundSurveyValues(prev => ({ ...prev, role_check: val }))}
+                  required
+                />
+                <RadioGroup
+                  label="Did you and your partner reach an agreement in this round?"
+                  options={[
+                    { value: 'yes', label: 'Yes, we reached an agreement' },
+                    { value: 'no', label: 'No, we did not reach an agreement' },
+                  ]}
+                  value={(roundSurveyValues.agreement_check as string) ?? ''}
+                  onChange={(val) => setRoundSurveyValues(prev => ({ ...prev, agreement_check: val }))}
+                  required
+                />
+              </QuestionSection>
+            </div>
+
+            {/* Opponent Priority Guess */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+              <QuestionSection title="Opponent Priority" sectionNumber={3} description="Which issue do you think was most important to your opponent?">
                 <RadioGroup
                   label="Select the issue"
-                  options={OPPONENT_PRIORITY_OPTIONS}
+                  options={scenario.issues.map(issue => ({ value: issue.id, label: `${issue.id}. ${issue.label}` }))}
                   value={opponentPriorityGuess ?? ''}
                   onChange={(val) => setOpponentPriorityGuess(val)}
                   error={!!submitError && !opponentPriorityGuess}
@@ -785,7 +795,29 @@ function PostSurveyPage() {
           </div>
           
           {/* Points Summary */}
-          {session && (
+          {roundPoints.length > 0 ? (
+            <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex-shrink-0">
+              <p className="text-xs font-medium text-slate-500 mb-2">Points Summary</p>
+              <div className="space-y-1">
+                {roundPoints.map((rp) => (
+                  <div key={rp.round} className="flex justify-between text-sm">
+                    <span className="text-slate-600">{getRoundLabel(rp.scenario) || `Round ${rp.round}`}:</span>
+                    {rp.agreed ? (
+                      <span className="font-medium text-green-600">{rp.points} pts</span>
+                    ) : (
+                      <span className="text-slate-400">No agreement (0 pts)</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {pointsEarned !== null && (
+                <div className="mt-2 pt-2 border-t border-slate-200 flex justify-between text-sm font-bold">
+                  <span className="text-slate-700">Total:</span>
+                  <span className="text-green-600">{pointsEarned} pts</span>
+                </div>
+              )}
+            </div>
+          ) : session ? (
             <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex-shrink-0">
               {session.agreement_reached && pointsEarned !== null ? (
                 <div className="text-center">
@@ -799,7 +831,7 @@ function PostSurveyPage() {
                 </div>
               )}
             </div>
-          )}
+          ) : null}
           
           {/* Chat Footer */}
           <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex-shrink-0">
