@@ -29,6 +29,28 @@ Important guidelines:
 The negotiation involves multiple issues where parties have different priorities. 
 Good outcomes come from identifying where to make concessions vs. stand firm.`
 
+/** GET /health -- check if the Ollama service is reachable */
+assistantRouter.get('/health', async (_req, res) => {
+  try {
+    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434'
+    const response = await fetch(`${ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(5000) })
+    if (response.ok) {
+      const data = await response.json() as { models?: unknown[] }
+      res.json({
+        status: 'ok',
+        ollamaUrl,
+        model: process.env.LLM_MODEL || 'llama3.2',
+        modelsAvailable: Array.isArray(data.models) ? data.models.length : 0,
+      })
+    } else {
+      res.status(502).json({ status: 'error', ollamaUrl, message: `Ollama responded with ${response.status}` })
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    res.status(502).json({ status: 'unreachable', ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434', message: msg })
+  }
+})
+
 /**
  * POST /query -- query the LLM and log the result.
  * Handles all LLM query routing and response logging.

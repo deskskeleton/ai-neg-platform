@@ -234,13 +234,15 @@ function NegotiatePage() {
     // Get the last offer
     const lastOffer = offerMessages[offerMessages.length - 1]
     
-    // Check if it was accepted or rejected
-    const lastAcceptance = messages.find(
-      m => m.message_type === 'acceptance' && 
+    // Check if the latest offer was accepted or rejected
+    // Search from the end to find the most recent acceptance/rejection (not an old one from a prior cycle)
+    const reversed = [...messages].reverse()
+    const lastAcceptance = reversed.find(
+      (m: Message) => m.message_type === 'acceptance' &&
            new Date(m.timestamp) > new Date(lastOffer.timestamp)
     )
-    const lastRejection = messages.find(
-      m => m.message_type === 'rejection' && 
+    const lastRejection = reversed.find(
+      (m: Message) => m.message_type === 'rejection' &&
            new Date(m.timestamp) > new Date(lastOffer.timestamp)
     )
     
@@ -539,6 +541,7 @@ function NegotiatePage() {
               onSendMessage={handleSendMessage}
               isLoading={isLoading}
               disabled={!isSessionActive}
+              scenario={scenario}
             />
           </div>
 

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Loader2 } from 'lucide-react'
 import type { Message, ParticipantRole } from '@/types/database.types'
+import { getRoleByDatabaseId, SCENARIO_CONFIG, type ScenarioConfig } from '@/config/scenarios'
 
 // ============================================
 // Types
@@ -13,6 +14,8 @@ interface ChatInterfaceProps {
   onSendMessage: (content: string) => Promise<void>
   isLoading?: boolean
   disabled?: boolean
+  /** Scenario config for resolving role display names */
+  scenario?: ScenarioConfig
 }
 
 interface DisplayMessage extends Message {
@@ -40,7 +43,8 @@ export function ChatInterface({
   currentRole,
   onSendMessage,
   isLoading = false,
-  disabled = false
+  disabled = false,
+  scenario = SCENARIO_CONFIG,
 }: ChatInterfaceProps) {
   // State
   const [inputValue, setInputValue] = useState('')
@@ -90,9 +94,10 @@ export function ChatInterface({
     try {
       await onSendMessage(content)
       setInputValue('')
-      // Reset textarea height
+      // Reset textarea height and re-focus for continued typing
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto'
+        textareaRef.current.focus()
       }
     } catch (error) {
       console.error('Failed to send message:', error)
@@ -141,7 +146,7 @@ export function ChatInterface({
         ) : (
           <>
             {displayMessages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
+              <MessageBubble key={msg.id} message={msg} scenario={scenario} />
             ))}
             <div ref={messagesEndRef} />
           </>
@@ -195,19 +200,21 @@ export function ChatInterface({
 
 interface MessageBubbleProps {
   message: DisplayMessage
+  scenario?: ScenarioConfig
 }
 
-function MessageBubble({ message }: MessageBubbleProps) {
+function MessageBubble({ message, scenario = SCENARIO_CONFIG }: MessageBubbleProps) {
   const { isOwnMessage, senderRole, content, timestamp, message_type } = message
 
   // Format timestamp
-  const time = new Date(timestamp).toLocaleTimeString([], { 
-    hour: '2-digit', 
-    minute: '2-digit' 
+  const time = new Date(timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
   })
 
-  // Role display names
-  const roleLabel = senderRole === 'pm' ? 'Project Manager' : 'Developer'
+  // Role display names - use scenario-specific labels
+  const roleConfig = getRoleByDatabaseId(senderRole, scenario)
+  const roleLabel = roleConfig?.label ?? (senderRole === 'pm' ? 'Role A' : 'Role B')
 
   // Special styling for offers
   const isOffer = message_type === 'offer'

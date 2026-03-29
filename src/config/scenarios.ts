@@ -267,9 +267,9 @@ const STUDENT_HOUSING_SCENARIO: ScenarioConfig = {
   
   roles: {
     roleA: {
-      id: 'leaseholder',
-      label: 'Lease Holder',
-      shortLabel: 'Lease',
+      id: 'contractholder',
+      label: 'Contract Holder',
+      shortLabel: 'Contract',
       color: 'purple',
     },
     roleB: {
@@ -310,7 +310,7 @@ const STUDENT_HOUSING_SCENARIO: ScenarioConfig = {
       options: [
         { value: 'A', label: '1. Tenant furnishes' },
         { value: 'B', label: '2. Shared responsibility' },
-        { value: 'C', label: '3. Lease holder furnishes' },
+        { value: 'C', label: '3. Contract holder furnishes' },
       ],
       payoffs: CANONICAL_PAYOFFS.I3,
     },
@@ -329,10 +329,10 @@ const STUDENT_HOUSING_SCENARIO: ScenarioConfig = {
 
   briefings: {
     roleA: {
-      title: 'Your Role: Lease Holder',
-      overview: `You are the current lease holder looking for a roommate to share 
-        your apartment. You've been living here for a year and have the primary 
-        relationship with the landlord. You need to negotiate terms with a 
+      title: 'Your Role: Contract Holder',
+      overview: `You are the current contract holder looking for a roommate to share
+        your apartment. You've been living here for a year and have the primary
+        relationship with the landlord. You need to negotiate terms with a
         potential new tenant.`,
       priorities: [
         'Prefer the new tenant pays a larger share of rent',
@@ -362,7 +362,7 @@ const STUDENT_HOUSING_SCENARIO: ScenarioConfig = {
       confidential: `Your point values (DO NOT SHARE):
         • Rent Contribution: You pay less = 10pts, Even = 30pts, You pay more = 50pts
         • Length of Stay: Short-term = 20pts, Medium-term = 40pts, Long-term = 60pts
-        • Furnishing: You furnish = 60pts, Shared = 40pts, Lease holder furnishes = 20pts
+        • Furnishing: You furnish = 60pts, Shared = 40pts, Contract holder furnishes = 20pts
         • Utility Split: Fixed = 40pts, Usage-based = 30pts, Equal = 20pts
         
         Maximum possible: 200 points`,
@@ -372,7 +372,7 @@ const STUDENT_HOUSING_SCENARIO: ScenarioConfig = {
   shared: {
     title: 'Student Housing Agreement',
     context: `Two students are negotiating terms for a shared apartment. 
-      The lease holder has an available room and the incoming tenant is looking 
+      The contract holder has an available room and the incoming tenant is looking 
       for housing. Both want a fair arrangement but have different preferences.`,
     goal: `Reach an agreement on ALL four issues within the time limit. 
       You earn points based on the final agreement. Try to maximize your points 
@@ -600,10 +600,19 @@ export function getScenarioForRoundPayoff(
   const table = getRoundPayoffTable(scenarioKey);
   if (!table) return null;
 
+  // Look up the themed scenario for this round to get proper issue/option labels
+  const themeScenarioId = scenarioKey === 'v1.a' ? 'group-project'
+    : scenarioKey === 'v1.b' ? 'student-housing'
+    : scenarioKey === 'v1.c' ? 'budget-allocation'
+    : null;
+  const themeScenario = themeScenarioId ? SCENARIOS[themeScenarioId] : null;
+
   const issues: NegotiationIssue[] = table.A.map((roleAPoints, idx) => ({
     id: `I${idx + 1}`,
-    label: `Issue ${idx + 1}`,
-    options: [
+    // Use themed issue labels/descriptions/options when available
+    label: themeScenario?.issues[idx]?.label ?? `Issue ${idx + 1}`,
+    description: themeScenario?.issues[idx]?.description,
+    options: themeScenario?.issues[idx]?.options ?? [
       { value: 'A', label: 'Option 1' },
       { value: 'B', label: 'Option 2' },
       { value: 'C', label: 'Option 3' },

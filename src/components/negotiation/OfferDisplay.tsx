@@ -45,7 +45,7 @@ export function OfferDisplay({
   scenario = SCENARIO_CONFIG,
 }: OfferDisplayProps) {
   const issues = scenario.issues;
-  const role = getRoleByDatabaseId(senderRole);
+  const role = getRoleByDatabaseId(senderRole, scenario);
   const roleName = role?.label ?? senderRole;
   const roleColor = role?.color ?? 'blue';
   

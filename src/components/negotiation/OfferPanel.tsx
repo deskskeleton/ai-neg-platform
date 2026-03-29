@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, AlertTriangle } from 'lucide-react';
 import { OfferBuilder, type OfferSelection } from './OfferBuilder';
 import { OfferDisplay } from './OfferDisplay';
 import { AgreementBanner } from './AgreementBanner';
@@ -61,6 +61,7 @@ export function OfferPanel({
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState<OfferSelection | null>(null);
   
   // Auto-expand when there's a pending offer from partner
   useEffect(() => {
@@ -73,23 +74,19 @@ export function OfferPanel({
   const isOwnOffer = pendingOffer?.senderParticipantId === participantId;
   const hasPendingPartnerOffer = pendingOffer && !isOwnOffer;
   
-  // Debug logging - remove after fixing
-  console.log('[OfferPanel Debug]', {
-    participantId,
-    pendingOffer: pendingOffer ? {
-      senderParticipantId: pendingOffer.senderParticipantId,
-      senderRole: pendingOffer.senderRole,
-    } : null,
-    isOwnOffer,
-    hasPendingPartnerOffer,
-  });
-  
-  // Handle offer submission
+  // Handle offer submission - show confirmation first
   const handleMakeOffer = async (selection: OfferSelection) => {
+    setPendingConfirmation(selection);
+  };
+
+  // Actually send the offer after confirmation
+  const handleConfirmOffer = async () => {
+    if (!pendingConfirmation) return;
     setIsSubmitting(true);
     try {
-      await onMakeOffer(selection);
+      await onMakeOffer(pendingConfirmation);
       setShowBuilder(false);
+      setPendingConfirmation(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -189,7 +186,8 @@ export function OfferPanel({
           {isOwnOffer && pendingOffer?.status === 'pending' && !showBuilder && (
             <div className="space-y-3">
               <div className="text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
-                ⏳ Your offer is pending. Waiting for partner's response...
+                <p className="font-medium">⏳ Your offer is pending.</p>
+                <p className="mt-1 text-blue-600">Waiting for your partner to accept or reject. Your offer cannot be withdrawn once sent.</p>
               </div>
               <OfferDisplay
                 offer={pendingOffer.selection}
@@ -242,6 +240,48 @@ export function OfferPanel({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Offer Confirmation Modal */}
+      {pendingConfirmation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md mx-4 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <h3 className="font-semibold text-slate-800">Confirm Offer</h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              Are you sure you want to send this offer? Once sent, it cannot be withdrawn.
+            </p>
+            <div className="bg-slate-50 rounded-lg p-3 mb-4 space-y-1">
+              {scenario.issues.map((issue) => {
+                const selectedIndex = pendingConfirmation[issue.id];
+                const option = selectedIndex !== undefined ? issue.options[selectedIndex] : null;
+                return (
+                  <div key={issue.id} className="flex justify-between text-sm">
+                    <span className="text-slate-600">{issue.label}:</span>
+                    <span className="font-medium text-slate-800">{option?.label ?? '—'}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPendingConfirmation(null)}
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm font-medium"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleConfirmOffer}
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-300 text-sm font-medium"
+              >
+                {isSubmitting ? 'Sending...' : 'Send Offer'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
