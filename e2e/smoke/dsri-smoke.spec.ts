@@ -8,15 +8,17 @@
  *   npx playwright test --config playwright.config.dsri.ts --ui
  *   npx playwright test --config playwright.config.dsri.ts
  *
- * Requires latest code deployed on DSRI:
- *   oc start-build neg-platform --from-dir=. --follow --wait
- *   oc rollout restart deployment/neg-platform deployment/ollama
+ * Prerequisites:
+ *   - GPU node booked and Ollama scheduled on it
+ *   - Latest code deployed:
+ *       oc start-build neg-platform --from-dir=. --follow --wait
+ *       oc apply -f openshift/ollama-deployment.yaml
+ *       oc rollout restart deployment/neg-platform deployment/ollama
  *
- * Creates minimal data (a few test participants + sessions).
- * Clean up afterwards via: /admin
+ * With GPU: responses take 2-10 seconds. All tests finish in ~1 minute.
+ * Without GPU: LLM tests will fail (CPU inference hits Ollama's 5-min timeout).
  *
- * Each test is self-contained — no shared state so fixture-type switching
- * (request → page) doesn't cause stale context issues.
+ * Each test is self-contained — no shared state.
  */
 
 import { test, expect, type APIRequestContext } from '@playwright/test';
@@ -39,10 +41,8 @@ async function createSmokeSession(request: APIRequestContext) {
     data: { timeLimitMinutes: 45, aiQueryLimit: 100 },
   });
   if (!sessRes.ok()) throw new Error(`Create session failed: ${await sessRes.text()}`);
-  // DB column is session_code, not code
   const session = await sessRes.json() as { id: string; session_code: string };
 
-  // available-role returns a bare string: 'pm' | 'developer' | null (not an object)
   const firstRole = await (
     await request.get(`/api/sessions/${session.id}/available-role`)
   ).json() as string;
@@ -102,11 +102,11 @@ test('Ollama health: /api/assistant/health returns status ok + model loaded', as
   console.log(`✓ Ollama OK — model: ${body.model}, ${body.modelsAvailable} model(s) available`);
 });
 
-// ─── 2. LLM wiring — REST only (no browser) ────────────────────────────────
+// ─── 2. LLM wiring — REST (no browser) ───────────────────────────────────
 
 test('assistant /query returns a real LLM response', async ({ request }) => {
-  // CPU inference on DSRI can take 3–5 minutes for llama3.2:3b — give it plenty of room
-  test.setTimeout(360_000);
+  // GPU inference: 2-10s. Allow 60s for cold-start + first inference.
+  test.setTimeout(60_000);
 
   const { sessionId, participantId } = await createSmokeSession(request);
 
@@ -117,12 +117,12 @@ test('assistant /query returns a real LLM response', async ({ request }) => {
       query: 'In one sentence, what is integrative bargaining?',
       conversationHistory: [],
     },
-    timeout: 330_000,
+    timeout: 45_000,
   });
 
   expect(
     res.status(),
-    `LLM query failed (${res.status()}) — Ollama not running or model not loaded.\n${await res.text()}`,
+    `LLM query failed (${res.status()}) — GPU not available or model not loaded.\n${await res.text()}`,
   ).toBe(200);
 
   const body = await res.json() as {
@@ -143,7 +143,6 @@ test('assistant /query returns a real LLM response', async ({ request }) => {
 test('session_participant is readable after join', async ({ request }) => {
   const { sessionId, participantId } = await createSmokeSession(request);
 
-  // This is the same call NegotiatePage makes to load participant info
   const res = await request.get(`/api/sessions/${sessionId}/participant/${participantId}`);
   expect(
     res.status(),
@@ -161,12 +160,10 @@ test('assistant panel is visible in the negotiate page', async ({ page, request 
 
   await page.goto(`/negotiate/${sessionId}?participant=${participantId}`);
 
-  // AssistantPanel header title: "AI Assistant" (from LLM_CONFIG.ui.panelTitle)
   await expect(
     page.getByText('AI Assistant').first(),
   ).toBeVisible({ timeout: 20_000 });
 
-  // AssistantPanel uses <input type="text">, chat uses <textarea>
   const assistantInput = page.locator('input[type="text"]').last();
   await expect(assistantInput).toBeVisible({ timeout: 10_000 });
   await expect(assistantInput).toBeEnabled();
@@ -177,8 +174,8 @@ test('assistant panel is visible in the negotiate page', async ({ page, request 
 // ─── 4. Browser: full E2E — type → Thinking… → response ───────────────────
 
 test('typing a question shows Thinking… then an LLM response bubble', async ({ page, request }) => {
-  // CPU inference on DSRI can take 3–5 minutes for llama3.2:3b on CPU
-  test.setTimeout(360_000);
+  // GPU inference: 2-10s. Allow 90s total for page load + query + render.
+  test.setTimeout(90_000);
 
   const { sessionId, participantId } = await createSmokeSession(request);
 
@@ -186,7 +183,6 @@ test('typing a question shows Thinking… then an LLM response bubble', async ({
 
   await expect(page.getByText('AI Assistant').first()).toBeVisible({ timeout: 20_000 });
 
-  // Wait until the input is enabled (component fully initialised) before sending
   const assistantInput = page.locator('input[type="text"]').last();
   await expect(assistantInput).toBeEnabled({ timeout: 15_000 });
 
@@ -196,10 +192,10 @@ test('typing a question shows Thinking… then an LLM response bubble', async ({
   // Spinner must appear promptly after send
   await expect(page.getByText('Thinking...')).toBeVisible({ timeout: 10_000 });
 
-  // Wait for model response — CPU inference on DSRI can take 3–5 minutes
-  await expect(page.getByText('Thinking...')).not.toBeVisible({ timeout: 330_000 });
+  // Wait for GPU response — typically 2-10s
+  await expect(page.getByText('Thinking...')).not.toBeVisible({ timeout: 30_000 });
 
-  // "Assistant" label inside each response bubble (MessageBubble component)
+  // "Assistant" label inside each response bubble
   await expect(page.getByText('Assistant').first()).toBeVisible({ timeout: 10_000 });
 
   // Confirm no error state shown
