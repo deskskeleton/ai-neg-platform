@@ -105,6 +105,9 @@ test('Ollama health: /api/assistant/health returns status ok + model loaded', as
 // ─── 2. LLM wiring — REST only (no browser) ────────────────────────────────
 
 test('assistant /query returns a real LLM response', async ({ request }) => {
+  // CPU inference on DSRI can take 3–5 minutes for llama3.2:3b — give it plenty of room
+  test.setTimeout(360_000);
+
   const { sessionId, participantId } = await createSmokeSession(request);
 
   const res = await request.post('/api/assistant/query', {
@@ -114,7 +117,7 @@ test('assistant /query returns a real LLM response', async ({ request }) => {
       query: 'In one sentence, what is integrative bargaining?',
       conversationHistory: [],
     },
-    timeout: 90_000,
+    timeout: 330_000,
   });
 
   expect(
@@ -174,21 +177,27 @@ test('assistant panel is visible in the negotiate page', async ({ page, request 
 // ─── 4. Browser: full E2E — type → Thinking… → response ───────────────────
 
 test('typing a question shows Thinking… then an LLM response bubble', async ({ page, request }) => {
+  // CPU inference on DSRI can take 3–5 minutes for llama3.2:3b on CPU
+  test.setTimeout(360_000);
+
   const { sessionId, participantId } = await createSmokeSession(request);
 
   await page.goto(`/negotiate/${sessionId}?participant=${participantId}`);
 
   await expect(page.getByText('AI Assistant').first()).toBeVisible({ timeout: 20_000 });
 
+  // Wait until the input is enabled (component fully initialised) before sending
   const assistantInput = page.locator('input[type="text"]').last();
+  await expect(assistantInput).toBeEnabled({ timeout: 15_000 });
+
   await assistantInput.fill('What is a good opening strategy in a multi-issue negotiation?');
   await assistantInput.press('Enter');
 
   // Spinner must appear promptly after send
-  await expect(page.getByText('Thinking...')).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText('Thinking...')).toBeVisible({ timeout: 10_000 });
 
-  // Wait for model response — CPU inference on DSRI can take 30–60s
-  await expect(page.getByText('Thinking...')).not.toBeVisible({ timeout: 90_000 });
+  // Wait for model response — CPU inference on DSRI can take 3–5 minutes
+  await expect(page.getByText('Thinking...')).not.toBeVisible({ timeout: 330_000 });
 
   // "Assistant" label inside each response bubble (MessageBubble component)
   await expect(page.getByText('Assistant').first()).toBeVisible({ timeout: 10_000 });

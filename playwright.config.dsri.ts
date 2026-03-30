@@ -13,7 +13,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e/smoke',
-  timeout: 90_000,
+  timeout: 60_000,    // default; LLM tests override with test.setTimeout(360_000)
   expect: {
     timeout: 20_000,
   },
@@ -21,7 +21,8 @@ export default defineConfig({
   workers: 1,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
-    baseURL: 'https://neg-platform.apps.dsri2.unimaas.nl',
+    // Use PLAYWRIGHT_BASE_URL env var to override (e.g., http://localhost:13000 via oc port-forward)
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'https://neg-platform.apps.dsri2.unimaas.nl',
     trace: 'retain-on-failure',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',

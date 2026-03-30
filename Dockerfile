@@ -16,6 +16,9 @@ COPY . .
 # Set VITE_BACKEND=rest so the built frontend uses the REST adapter
 ENV VITE_BACKEND=rest
 ENV VITE_ADMIN_PASSWORD=umdad2026
+# Assistant API URL — relative path works for both DSRI and local Docker Compose
+# since the frontend and backend are served from the same Express server on port 3000
+ENV VITE_ASSISTANT_API_URL=/api/assistant/query
 RUN npm run build
 
 # -- Stage 2: Build the Express server --
