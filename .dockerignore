@@ -1,0 +1,27 @@
+# Exclude large/unnecessary directories from oc start-build --from-dir uploads
+node_modules/
+server/node_modules/
+.git/
+dist/
+dist-ssr/
+build/
+
+# Test output
+test-results/
+playwright-report/
+blob-report/
+coverage/
+
+# Local env / secrets
+.env
+.env.*
+*.local
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code internal
+.claude/
