@@ -52,7 +52,6 @@ function RoleBriefingPage() {
     overview: true,
     priorities: true,
     confidential: true,
-    issues: true,
   });
   
   // Comprehension quiz state
@@ -168,25 +167,17 @@ function RoleBriefingPage() {
     }));
   }
 
-  // Color classes based on role
-  const roleColors = {
-    pm: {
-      bg: 'bg-blue-50',
-      border: 'border-blue-200',
-      text: 'text-blue-700',
-      accent: 'bg-blue-100',
-      button: 'bg-blue-600 hover:bg-blue-700',
-    },
-    developer: {
-      bg: 'bg-green-50',
-      border: 'border-green-200',
-      text: 'text-green-700',
-      accent: 'bg-green-100',
-      button: 'bg-green-600 hover:bg-green-700',
-    },
+  // Color classes keyed by RoleConfig.color — supports all 6 round role colors
+  const COLOR_CLASSES: Record<string, { bg: string; border: string; text: string; accent: string; button: string }> = {
+    blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   accent: 'bg-blue-100',   button: 'bg-blue-600 hover:bg-blue-700' },
+    green:  { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  accent: 'bg-green-100',  button: 'bg-green-600 hover:bg-green-700' },
+    purple: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', accent: 'bg-purple-100', button: 'bg-purple-600 hover:bg-purple-700' },
+    orange: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', accent: 'bg-orange-100', button: 'bg-orange-600 hover:bg-orange-700' },
+    teal:   { bg: 'bg-teal-50',   border: 'border-teal-200',   text: 'text-teal-700',   accent: 'bg-teal-100',   button: 'bg-teal-600 hover:bg-teal-700' },
+    red:    { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    accent: 'bg-red-100',    button: 'bg-red-600 hover:bg-red-700' },
   };
 
-  const colors = role ? roleColors[role] : roleColors.pm;
+  const colors = COLOR_CLASSES[roleConfig?.color ?? 'blue'];
 
   // ============================================
   // Render
@@ -339,49 +330,7 @@ function RoleBriefingPage() {
           )}
         </div>
 
-        {/* Issues to Negotiate */}
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm mb-4">
-          <button
-            onClick={() => toggleSection('issues')}
-            className="w-full flex items-center justify-between p-4 hover:bg-slate-50"
-          >
-            <div className="flex items-center gap-3">
-              <BookOpen className="w-5 h-5 text-slate-600" />
-              <span className="font-semibold text-slate-900">Issues to Negotiate</span>
-            </div>
-            {expandedSections.issues ? (
-              <ChevronUp className="w-5 h-5 text-slate-400" />
-            ) : (
-              <ChevronDown className="w-5 h-5 text-slate-400" />
-            )}
-          </button>
-          {expandedSections.issues && (
-            <div className="px-4 pb-4 border-t border-slate-100">
-              <div className="pt-4 space-y-4">
-                {scenario.issues.map((issue) => (
-                  <div key={issue.id} className="bg-slate-50 rounded-lg p-3">
-                    <h4 className="font-medium text-slate-900 mb-1">{issue.label}</h4>
-                    {issue.description && (
-                      <p className="text-sm text-slate-600 mb-2">{issue.description}</p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {issue.options.map((option) => (
-                        <span
-                          key={option.value}
-                          className="px-2 py-1 bg-white border border-slate-200 rounded text-sm text-slate-700"
-                        >
-                          {option.label}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Confidential Point Values - Table Format */}
+        {/* Issues & Point Values — combined section */}
         <div className={`${colors.bg} rounded-lg border-2 border-dashed ${colors.border} mb-6`}>
           <button
             onClick={() => toggleSection('confidential')}
@@ -390,7 +339,7 @@ function RoleBriefingPage() {
             <div className="flex items-center gap-3">
               <Lock className={`w-5 h-5 ${colors.text}`} />
               <span className={`font-semibold ${colors.text}`}>
-                🔒 Confidential Point Values
+                🔒 Negotiation Issues &amp; Your Points
               </span>
             </div>
             {expandedSections.confidential ? (
@@ -401,47 +350,101 @@ function RoleBriefingPage() {
           </button>
           {expandedSections.confidential && (
             <div className="px-4 pb-4 border-t border-dashed border-slate-300">
-              <div className="pt-4 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className={`border-b ${colors.border}`}>
-                      <th className={`text-left py-2 px-3 font-semibold ${colors.text}`}>Issue</th>
-                      {scenario.issues[0]?.options.map((_, idx) => (
-                        <th key={idx} className={`text-center py-2 px-3 font-semibold ${colors.text}`}>
-                          Option {idx + 1}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scenario.issues.map((issue) => (
-                      <tr key={issue.id} className="border-b border-slate-200">
-                        <td className={`py-2 px-3 font-medium ${colors.text}`}>{issue.label}</td>
-                        {issue.options.map((option, idx) => {
-                          const points = roleKey ? issue.payoffs[roleKey][idx] : 0;
-                          return (
-                            <td key={option.value} className="text-center py-2 px-3">
-                              <div className="text-slate-600">{option.label}</div>
-                              <div className={`font-bold ${colors.text}`}>{points} pts</div>
-                            </td>
-                          );
-                        })}
+
+              {/* Table A — shared option reference */}
+              <div className="pt-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                  Option names — both participants see these
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="text-left py-2 px-3 font-semibold text-slate-600">Issue</th>
+                        <th className="text-center py-2 px-3 font-semibold text-slate-600">Option A</th>
+                        <th className="text-center py-2 px-3 font-semibold text-slate-600">Option B</th>
+                        <th className="text-center py-2 px-3 font-semibold text-slate-600">Option C</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {scenario.issues.map((issue) => (
+                        <tr key={issue.id} className="border-b border-slate-100">
+                          <td className="py-2 px-3">
+                            <div className="font-medium text-slate-800">{issue.label}</div>
+                            {issue.description && (
+                              <div className="text-xs text-slate-500 mt-0.5">{issue.description}</div>
+                            )}
+                          </td>
+                          {issue.options.map((option) => (
+                            <td key={option.value} className="text-center py-2 px-3 text-slate-700">
+                              {option.label}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className={`mt-4 p-3 rounded ${colors.bg} border ${colors.border}`}>
-                <p className={`text-sm font-semibold ${colors.text}`}>
-                  Maximum possible: {scenario.issues.reduce((sum, issue) => {
-                    const maxPoints = roleKey ? Math.max(...issue.payoffs[roleKey]) : 0;
-                    return sum + maxPoints;
-                  }, 0)} points
+
+              {/* Bridge note */}
+              <div className="my-3 px-3 py-2 bg-white bg-opacity-60 rounded border border-slate-200">
+                <p className="text-xs text-slate-500">
+                  Your partner sees the same option names above — only the point values below differ between roles.
                 </p>
               </div>
-              <p className="mt-3 text-xs text-slate-500">
-                ⚠️ Do not share these point values with your negotiation partner
-              </p>
+
+              {/* Table B — private scores */}
+              <div>
+                <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${colors.text}`}>
+                  Your point values (confidential)
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className={`border-b ${colors.border}`}>
+                        <th className={`text-left py-2 px-3 font-semibold ${colors.text}`}>Issue</th>
+                        <th className={`text-center py-2 px-3 font-semibold ${colors.text}`}>Option A</th>
+                        <th className={`text-center py-2 px-3 font-semibold ${colors.text}`}>Option B</th>
+                        <th className={`text-center py-2 px-3 font-semibold ${colors.text}`}>Option C</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scenario.issues.map((issue) => {
+                        const payoffs = roleKey ? issue.payoffs[roleKey] : [];
+                        const maxPayoff = payoffs.length ? Math.max(...payoffs) : 0;
+                        return (
+                          <tr key={issue.id} className="border-b border-slate-200">
+                            <td className={`py-2 px-3 font-medium ${colors.text}`}>{issue.label}</td>
+                            {issue.options.map((option, idx) => {
+                              const points = payoffs[idx] ?? 0;
+                              const isBest = points === maxPayoff && maxPayoff > 0;
+                              return (
+                                <td key={option.value} className="text-center py-2 px-3">
+                                  <span className={`font-mono ${isBest ? `font-bold ${colors.text}` : 'text-slate-600'}`}>
+                                    {points} pts
+                                  </span>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className={`mt-3 p-3 rounded ${colors.bg} border ${colors.border}`}>
+                  <p className={`text-sm font-semibold ${colors.text}`}>
+                    Maximum possible: {scenario.issues.reduce((sum, issue) => {
+                      const maxPts = roleKey ? Math.max(...issue.payoffs[roleKey]) : 0;
+                      return sum + maxPts;
+                    }, 0)} points
+                  </p>
+                </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  ⚠️ Do not share these point values with your negotiation partner
+                </p>
+              </div>
             </div>
           )}
         </div>

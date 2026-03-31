@@ -245,6 +245,13 @@ export function AssistantPanel({
         )}
       </div>
 
+      {/* Privacy Reminder */}
+      <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-200">
+        <p className="text-xs text-amber-700">
+          Please do not enter personal identifying information into the assistant.
+        </p>
+      </div>
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (

@@ -511,41 +511,177 @@ const BUDGET_ALLOCATION_SCENARIO: ScenarioConfig = {
 };
 
 // =============================================================================
-// ROUND THEMES (v1.a, v1.b, v1.c) – different role names and roleplay contexts
-// Each round uses one theme; payoffs come from payoffs.ts (ROUND_PAYOFF_TABLES).
+// ROUND THEMES (v1.a, v1.b, v1.c) – distinct roleplay contexts per round.
+// Each theme provides: roles, issue/option labels, briefings with ACTUAL payoff
+// values from ROUND_PAYOFF_TABLES (payoffs.ts), and shared scenario context.
+// The roleplay framing is deliberately shallow — participants should focus on
+// the negotiation task and point optimization, not deep roleplaying.
 // =============================================================================
 
-const GENERIC_ROUND_CONFIDENTIAL = `Your point values (DO NOT SHARE): See the payoff table in the negotiation screen for your role's values. Maximum possible: 200 points.`;
-
-function roundBriefing(roleBriefing: RoleBriefing): RoleBriefing {
-  return { ...roleBriefing, confidential: GENERIC_ROUND_CONFIDENTIAL };
+interface RoundTheme {
+  roles: ScenarioConfig['roles'];
+  issueLabels: { label: string; description: string; options: [string, string, string] }[];
+  briefings: ScenarioConfig['briefings'];
+  shared: ScenarioConfig['shared'];
 }
 
-const ROUND_THEMES: Record<string, { roles: ScenarioConfig['roles']; briefings: ScenarioConfig['briefings']; shared: ScenarioConfig['shared'] }> = {
-  'v1.a': {
-    roles: GROUP_PROJECT_SCENARIO.roles,
-    briefings: {
-      roleA: roundBriefing(GROUP_PROJECT_SCENARIO.briefings.roleA),
-      roleB: roundBriefing(GROUP_PROJECT_SCENARIO.briefings.roleB),
-    },
-    shared: GROUP_PROJECT_SCENARIO.shared,
+// ---- v1.a: Group Project Contract (Coordinator vs Specialist) ----
+// Payoffs from ROUND_PAYOFF_TABLES['v1.a']:
+//   A: [8,28,52], [18,45,47], [62,37,21], [39,31,22]
+//   B: [62,36,18], [48,34,12], [12,33,55], [35,27,18]
+
+const ROUND_THEME_V1A: RoundTheme = {
+  roles: {
+    roleA: { id: 'coordinator', label: 'Project Coordinator', shortLabel: 'Coord', color: 'blue' },
+    roleB: { id: 'specialist', label: 'Technical Specialist', shortLabel: 'Spec', color: 'green' },
   },
-  'v1.b': {
-    roles: STUDENT_HOUSING_SCENARIO.roles,
-    briefings: {
-      roleA: roundBriefing(STUDENT_HOUSING_SCENARIO.briefings.roleA),
-      roleB: roundBriefing(STUDENT_HOUSING_SCENARIO.briefings.roleB),
+  issueLabels: [
+    { label: 'Deadline Strictness', description: 'How strictly the project deadline should be enforced',
+      options: ['Flexible deadline', 'Standard deadline', 'Strict deadline'] },
+    { label: 'Division of Written Work', description: 'How the written portions of the project are divided',
+      options: ['Coordinator writes most', 'Even split', 'Specialist writes most'] },
+    { label: 'Presentation Responsibility', description: 'Who takes the lead on presenting the project',
+      options: ['Specialist presents', 'Shared presentation', 'Coordinator presents'] },
+    { label: 'Grading Scheme Weight', description: 'Balance between group and individual assessment',
+      options: ['Group-heavy grading', 'Balanced grading', 'Individual-heavy grading'] },
+  ],
+  briefings: {
+    roleA: {
+      title: 'Your Role: Project Coordinator',
+      overview: `You are the Project Coordinator for a mandatory group project. You are responsible for keeping the project on track and ensuring all deliverables are submitted on time. You need to negotiate the project terms with your Technical Specialist partner.`,
+      priorities: [
+        'You value different options differently across the four issues',
+        'Your point values are shown in the payoff table — use them to guide your strategy',
+        'Try to maximize your total points while reaching a deal',
+      ],
+      confidential: 'See the point values table on this page.',
     },
-    shared: STUDENT_HOUSING_SCENARIO.shared,
-  },
-  'v1.c': {
-    roles: BUDGET_ALLOCATION_SCENARIO.roles,
-    briefings: {
-      roleA: roundBriefing(BUDGET_ALLOCATION_SCENARIO.briefings.roleA),
-      roleB: roundBriefing(BUDGET_ALLOCATION_SCENARIO.briefings.roleB),
+    roleB: {
+      title: 'Your Role: Technical Specialist',
+      overview: `You are the Technical Specialist for a mandatory group project. You bring deep technical expertise and want to ensure the project meets high quality standards. You need to negotiate the project terms with your Project Coordinator partner.`,
+      priorities: [
+        'You value different options differently across the four issues',
+        'Your point values are shown in the payoff table — use them to guide your strategy',
+        'Try to maximize your total points while reaching a deal',
+      ],
+      confidential: 'See the point values table on this page.',
     },
-    shared: BUDGET_ALLOCATION_SCENARIO.shared,
   },
+  shared: {
+    title: 'Group Project Contract',
+    context: `Two students are negotiating the terms of a mandatory group project. Both want the project to succeed but have different working styles and preferences for how to divide responsibilities.`,
+    goal: `Reach an agreement on ALL four issues within the time limit. You earn points based on the final agreement. Try to maximize your points while reaching a mutually acceptable deal.`,
+    timeLimit: 10,
+    maxAssistantQueries: 100,
+  },
+};
+
+// ---- v1.b: Student Housing Agreement (Lease Holder vs Incoming Tenant) ----
+// Payoffs from ROUND_PAYOFF_TABLES['v1.b']:
+//   A: [10,30,50], [60,35,15], [55,30,15], [25,35,10]
+//   B: [60,35,15], [10,30,50], [15,30,55], [20,35,15]
+
+const ROUND_THEME_V1B: RoundTheme = {
+  roles: {
+    roleA: { id: 'leaseholder', label: 'Lease Holder', shortLabel: 'Lease', color: 'purple' },
+    roleB: { id: 'tenant', label: 'Incoming Tenant', shortLabel: 'Tenant', color: 'orange' },
+  },
+  issueLabels: [
+    { label: 'Rent Contribution', description: 'How the monthly rent is split between roommates',
+      options: ['Tenant pays less', 'Even split', 'Tenant pays more'] },
+    { label: 'Length of Stay Commitment', description: 'Minimum period the tenant commits to staying',
+      options: ['Long-term (12 months)', 'Medium-term (6 months)', 'Short-term (3 months)'] },
+    { label: 'Furnishing Responsibility', description: 'Who provides furniture for common areas',
+      options: ['Tenant furnishes', 'Shared responsibility', 'Lease holder furnishes'] },
+    { label: 'Utility Cost Split', description: 'How utility bills are divided',
+      options: ['Fixed monthly amount', 'Usage-based split', 'Equal percentage split'] },
+  ],
+  briefings: {
+    roleA: {
+      title: 'Your Role: Lease Holder',
+      overview: `You are the current lease holder looking for a roommate to share your apartment. You've been living here for a year and have the primary relationship with the landlord. You need to negotiate terms with a potential new tenant.`,
+      priorities: [
+        'You value different options differently across the four issues',
+        'Your point values are shown in the payoff table — use them to guide your strategy',
+        'Try to maximize your total points while reaching a deal',
+      ],
+      confidential: 'See the point values table on this page.',
+    },
+    roleB: {
+      title: 'Your Role: Incoming Tenant',
+      overview: `You are looking for a room in a shared apartment. You've found a place you like but need to negotiate the terms with the current lease holder before moving in.`,
+      priorities: [
+        'You value different options differently across the four issues',
+        'Your point values are shown in the payoff table — use them to guide your strategy',
+        'Try to maximize your total points while reaching a deal',
+      ],
+      confidential: 'See the point values table on this page.',
+    },
+  },
+  shared: {
+    title: 'Student Housing Agreement',
+    context: `Two students are negotiating terms for a shared apartment. The lease holder has an available room and the incoming tenant is looking for housing. Both want a fair arrangement but have different preferences.`,
+    goal: `Reach an agreement on ALL four issues within the time limit. You earn points based on the final agreement. Try to maximize your points while reaching a mutually acceptable deal.`,
+    timeLimit: 10,
+    maxAssistantQueries: 100,
+  },
+};
+
+// ---- v1.c: Student Organization Budget (Events Lead vs Comms Lead) ----
+// Payoffs from ROUND_PAYOFF_TABLES['v1.c']:
+//   A: [12,34,54], [20,45,52], [58,32,10], [36,30,14]
+//   B: [60,28,12], [18,50,32], [12,34,54], [28,36,16]
+
+const ROUND_THEME_V1C: RoundTheme = {
+  roles: {
+    roleA: { id: 'events', label: 'Events Lead', shortLabel: 'Events', color: 'teal' },
+    roleB: { id: 'comms', label: 'Communications Lead', shortLabel: 'Comms', color: 'red' },
+  },
+  issueLabels: [
+    { label: 'Budget Allocation', description: 'How the limited funds are divided between teams',
+      options: ['Comms-heavy (40/60)', 'Balanced (50/50)', 'Events-heavy (60/40)'] },
+    { label: 'Volunteer Time Allocation', description: 'Which activities volunteers prioritize',
+      options: ['Comms-led coordination', 'Shared pool', 'Events-led coordination'] },
+    { label: 'Visibility & Credit', description: 'Who gets recognition for organization success',
+      options: ['Events lead highlighted', 'Joint credit', 'Comms lead highlighted'] },
+    { label: 'Decision Autonomy', description: 'How decisions are made within each team',
+      options: ['Joint decisions required', 'Mixed (major decisions joint)', 'Independent decisions'] },
+  ],
+  briefings: {
+    roleA: {
+      title: 'Your Role: Events Lead',
+      overview: `You lead the Events team for a student organization. Your team organizes workshops, social events, and the annual conference. You need to negotiate resource allocation with the Communications Lead.`,
+      priorities: [
+        'You value different options differently across the four issues',
+        'Your point values are shown in the payoff table — use them to guide your strategy',
+        'Try to maximize your total points while reaching a deal',
+      ],
+      confidential: 'See the point values table on this page.',
+    },
+    roleB: {
+      title: 'Your Role: Communications Lead',
+      overview: `You lead the Communications team for a student organization. Your team handles social media, marketing, newsletters, and branding. You need to negotiate resource allocation with the Events Lead.`,
+      priorities: [
+        'You value different options differently across the four issues',
+        'Your point values are shown in the payoff table — use them to guide your strategy',
+        'Try to maximize your total points while reaching a deal',
+      ],
+      confidential: 'See the point values table on this page.',
+    },
+  },
+  shared: {
+    title: 'Student Organization Budget',
+    context: `Two committee members from a student organization are negotiating how to allocate limited funds and volunteer effort between their teams. Both want the organization to succeed but have different team needs.`,
+    goal: `Reach an agreement on ALL four issues within the time limit. You earn points based on the final agreement. Try to maximize your points while reaching a mutually acceptable deal.`,
+    timeLimit: 10,
+    maxAssistantQueries: 100,
+  },
+};
+
+const ROUND_THEMES: Record<string, RoundTheme> = {
+  'v1.a': ROUND_THEME_V1A,
+  'v1.b': ROUND_THEME_V1B,
+  'v1.c': ROUND_THEME_V1C,
 };
 
 // =============================================================================
@@ -592,7 +728,8 @@ export function getScenarioById(scenarioId: string | null | undefined): Scenario
 
 /**
  * Build a full scenario config from a round payoff key (v1.a, v1.b, v1.c).
- * Uses generic issue/option labels; payoffs come from ROUND_PAYOFF_TABLES.
+ * Uses themed issue/option labels from ROUND_THEMES; payoffs from ROUND_PAYOFF_TABLES.
+ * Briefings contain the actual payoff values for the round (not canonical payoffs).
  */
 export function getScenarioForRoundPayoff(
   scenarioKey: string | null | undefined
@@ -600,54 +737,42 @@ export function getScenarioForRoundPayoff(
   const table = getRoundPayoffTable(scenarioKey);
   if (!table) return null;
 
-  // Look up the themed scenario for this round to get proper issue/option labels
-  const themeScenarioId = scenarioKey === 'v1.a' ? 'group-project'
-    : scenarioKey === 'v1.b' ? 'student-housing'
-    : scenarioKey === 'v1.c' ? 'budget-allocation'
-    : null;
-  const themeScenario = themeScenarioId ? SCENARIOS[themeScenarioId] : null;
-
-  const issues: NegotiationIssue[] = table.A.map((roleAPoints, idx) => ({
-    id: `I${idx + 1}`,
-    // Use themed issue labels/descriptions/options when available
-    label: themeScenario?.issues[idx]?.label ?? `Issue ${idx + 1}`,
-    description: themeScenario?.issues[idx]?.description,
-    options: themeScenario?.issues[idx]?.options ?? [
-      { value: 'A', label: 'Option 1' },
-      { value: 'B', label: 'Option 2' },
-      { value: 'C', label: 'Option 3' },
-    ],
-    payoffs: {
-      roleA: roleAPoints,
-      roleB: table.B[idx],
-    },
-  }));
-
   const theme = ROUND_THEMES[scenarioKey!];
   if (!theme) return null;
 
+  const issues: NegotiationIssue[] = table.A.map((roleAPoints, idx) => {
+    const themeIssue = theme.issueLabels[idx];
+    return {
+      id: `I${idx + 1}`,
+      label: themeIssue?.label ?? `Issue ${idx + 1}`,
+      description: themeIssue?.description,
+      options: themeIssue
+        ? [
+            { value: 'A', label: `1. ${themeIssue.options[0]}` },
+            { value: 'B', label: `2. ${themeIssue.options[1]}` },
+            { value: 'C', label: `3. ${themeIssue.options[2]}` },
+          ]
+        : [
+            { value: 'A', label: 'Option 1' },
+            { value: 'B', label: 'Option 2' },
+            { value: 'C', label: 'Option 3' },
+          ],
+      payoffs: {
+        roleA: roleAPoints,
+        roleB: table.B[idx],
+      },
+    };
+  });
+
   const roundLabel = getRoundLabel(scenarioKey) || scenarioKey;
   const sharedTitle = `${roundLabel}: ${theme.shared.title}`;
-  const briefingPrefix = `This round (${roundLabel}) has its own payoff structure. Maximize your points using the payoff table.\n\n`;
-  const briefings = {
-    roleA: {
-      ...theme.briefings.roleA,
-      title: `${roundLabel} – ${theme.briefings.roleA.title}`,
-      overview: briefingPrefix + theme.briefings.roleA.overview,
-    },
-    roleB: {
-      ...theme.briefings.roleB,
-      title: `${roundLabel} – ${theme.briefings.roleB.title}`,
-      overview: briefingPrefix + theme.briefings.roleB.overview,
-    },
-  };
 
   return {
     id: scenarioKey!,
     version: '1.0',
     roles: theme.roles,
     issues,
-    briefings,
+    briefings: theme.briefings,
     shared: {
       ...theme.shared,
       title: sharedTitle,

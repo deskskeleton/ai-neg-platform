@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Target } from 'lucide-react';
-import { SCENARIO_CONFIG, getRoleKey, type ScenarioConfig } from '@/config/scenarios';
+import { SCENARIO_CONFIG, getRoleKey, getRoleByDatabaseId, type ScenarioConfig } from '@/config/scenarios';
 import type { ParticipantRole } from '@/types/database.types';
 import type { TreatmentCondition } from '@/types/database.types';
 
@@ -29,22 +29,17 @@ export function PayoffReference({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const effectiveExpanded = alwaysVisible ? true : isExpanded;
   const roleKey = getRoleKey(role);
-  const roleColor = role === 'pm' ? 'blue' : 'green';
-  
-  const colors = {
-    blue: {
-      bg: 'bg-blue-50',
-      border: 'border-blue-200',
-      text: 'text-blue-700',
-      header: 'bg-blue-100',
-    },
-    green: {
-      bg: 'bg-green-50',
-      border: 'border-green-200',
-      text: 'text-green-700',
-      header: 'bg-green-100',
-    },
-  }[roleColor];
+  const roleConfig = getRoleByDatabaseId(role, scenario);
+
+  const COLOR_CLASSES: Record<string, { bg: string; border: string; text: string; header: string }> = {
+    blue:   { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700',   header: 'bg-blue-100' },
+    green:  { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  header: 'bg-green-100' },
+    purple: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', header: 'bg-purple-100' },
+    orange: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', header: 'bg-orange-100' },
+    teal:   { bg: 'bg-teal-50',   border: 'border-teal-200',   text: 'text-teal-700',   header: 'bg-teal-100' },
+    red:    { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    header: 'bg-red-100' },
+  };
+  const colors = COLOR_CLASSES[roleConfig?.color ?? 'blue'];
   
   // Calculate max points
   const maxPoints = roleKey 

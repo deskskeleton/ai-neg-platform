@@ -133,6 +133,13 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full bg-white rounded-lg border border-neutral-200 overflow-hidden">
+      {/* Privacy Reminder */}
+      <div className="px-4 py-2 bg-amber-50 border-b border-amber-200">
+        <p className="text-xs text-amber-700">
+          <strong>Reminder:</strong> Do not share personal identifying information (name, email, phone number, student ID, or where you are seated).
+        </p>
+      </div>
+
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isLoading ? (
