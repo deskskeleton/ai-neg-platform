@@ -29,12 +29,12 @@ test('admin panel shows batches after page reload', async ({ page, request }) =>
   // so any value (or blank) should pass; try empty submit if a form is visible
   const secretInput = page.locator('input[type="password"]');
   if (await secretInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await secretInput.fill('');
+    await secretInput.fill(process.env.VITE_ADMIN_PASSWORD ?? 'umdad2026');
     await page.getByRole('button', { name: /login|enter|submit/i }).click();
   }
 
   // The batch list should be visible
-  await expect(page.getByText(batch.code)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(batch.batch_code)).toBeVisible({ timeout: 10_000 });
 
   // Reload — batch must still appear (the persistence bug)
   await page.reload();
@@ -43,7 +43,7 @@ test('admin panel shows batches after page reload', async ({ page, request }) =>
     await secretInput2.fill('');
     await page.getByRole('button', { name: /login|enter|submit/i }).click();
   }
-  await expect(page.getByText(batch.code)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(batch.batch_code)).toBeVisible({ timeout: 10_000 });
 });
 
 test('participant count updates after joins', async ({ page, request }) => {
@@ -59,11 +59,11 @@ test('participant count updates after joins', async ({ page, request }) => {
   await page.goto('/admin');
   const secretInput = page.locator('input[type="password"]');
   if (await secretInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await secretInput.fill('');
+    await secretInput.fill(process.env.VITE_ADMIN_PASSWORD ?? 'umdad2026');
     await page.getByRole('button', { name: /login|enter|submit/i }).click();
   }
 
-  // The batch row should show 2 participants somewhere near the batch code
-  const batchRow = page.locator(`text=${batch.code}`).locator('..').locator('..');
-  await expect(batchRow).toContainText('2', { timeout: 10_000 });
+  // The batch row should show 2 participants in the Participants column
+  const batchRow = page.getByRole('row').filter({ hasText: batch.batch_code });
+  await expect(batchRow).toContainText('2/12', { timeout: 10_000 });
 });

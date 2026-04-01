@@ -20,31 +20,25 @@ test.beforeAll(async ({ request }) => {
 });
 
 async function buildAndSendOffer(page: import('@playwright/test').Page) {
-  // Open offer panel if collapsed
-  const offerPanelBtn = page.getByRole('button', { name: /formal offers/i });
-  if (await offerPanelBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await offerPanelBtn.click();
+  // Panel starts expanded (isCollapsed=false). Click "Make Offer" to open the builder.
+  const makeOfferBtn = page.getByRole('button', { name: /^Make Offer$/ }).first();
+  await makeOfferBtn.waitFor({ state: 'visible', timeout: 8_000 });
+  await makeOfferBtn.click();
+
+  // Wait for builder header text
+  await page.getByText('Select your proposed terms for each issue').waitFor({ timeout: 5_000 });
+
+  // Select first option in each .flex.flex-wrap.gap-2 group (one group per issue)
+  const optionGroups = page.locator('.flex.flex-wrap.gap-2');
+  const groupCount = await optionGroups.count();
+  for (let i = 0; i < groupCount; i++) {
+    await optionGroups.nth(i).getByRole('button').first().click();
   }
 
-  const makeOfferBtn = page.getByRole('button', { name: /make offer|build offer/i });
-  if (await makeOfferBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    await makeOfferBtn.click();
-  }
+  // Submit the builder (last button matching the offer label)
+  await page.getByRole('button', { name: /^Make Offer$|^Make Counter-Offer$/ }).last().click();
 
-  // Select first radio for each issue
-  const radios = page.locator('input[type="radio"]');
-  const count = await radios.count();
-  const seen = new Set<string>();
-  for (let i = 0; i < count; i++) {
-    const name = await radios.nth(i).getAttribute('name');
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      await radios.nth(i).click();
-    }
-  }
-
-  await page.getByRole('button', { name: /submit offer|counter/i }).first().click();
-  // Confirm modal
+  // Confirm in the modal
   const confirmBtn = page.getByRole('button', { name: /send offer/i });
   if (await confirmBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
     await confirmBtn.click();
@@ -84,8 +78,8 @@ test('post-survey shows points when agreement was reached', async ({ page, reque
 
   const pair = await createMatchedPair(request);
 
-  // End the session with an agreement via API
-  await api.endSession(pair.sessionId, true, { issue1: 0, issue2: 1, issue3: 0 });
+  // End the session with an agreement via API (issue IDs match scenario: I1, I2, I3, I4)
+  await api.endSession(pair.sessionId, true, { I1: 0, I2: 1, I3: 0, I4: 0 });
 
   // Navigate directly to post-survey
   await page.goto(postSurveyUrl(pair.sessionId, pair.p1.id));
@@ -93,8 +87,8 @@ test('post-survey shows points when agreement was reached', async ({ page, reque
   // Should NOT say "no agreements made" in the points sidebar
   await expect(page.getByText(/no agreements made/i)).not.toBeVisible({ timeout: 10_000 });
 
-  // Should show some numeric points value
-  await expect(page.getByText(/\d+\s*(pts|points)/i)).toBeVisible({ timeout: 10_000 });
+  // Should show some numeric points value (e.g. "127 pts")
+  await expect(page.getByText(/\d+\s*(pts|points)/i).first()).toBeVisible({ timeout: 10_000 });
 });
 
 test('debrief page shows non-zero points after agreement', async ({ page, request }) => {
@@ -102,12 +96,12 @@ test('debrief page shows non-zero points after agreement', async ({ page, reques
   await api.clearAll();
 
   const pair = await createMatchedPair(request);
-  await api.endSession(pair.sessionId, true, { issue1: 0, issue2: 1, issue3: 0 });
+  await api.endSession(pair.sessionId, true, { I1: 0, I2: 1, I3: 0, I4: 0 });
 
   await page.goto(debriefUrl(pair.p1.id));
 
-  // Debrief should mention a numeric point value
-  await expect(page.getByText(/\d+/)).toBeVisible({ timeout: 15_000 });
+  // Wait for debrief to load (the "Total:" line only renders when round data is present)
+  await expect(page.getByText('Total:')).toBeVisible({ timeout: 15_000 });
 
   // Should NOT say "no agreements" across all rounds
   const text = await page.textContent('body') ?? '';

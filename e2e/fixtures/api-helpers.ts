@@ -11,7 +11,7 @@ import type { APIRequestContext } from '@playwright/test';
 
 export interface Batch {
   id: string;
-  code: string;
+  batch_code: string;
   max_participants: number;
   status: string;
 }
@@ -86,6 +86,22 @@ export class ApiHelper {
       participantId,
       roundNumber,
     });
+  }
+
+  /** Retrieve session for a participant in a given round after batch matching. */
+  async getSessionForParticipantRound(participantId: string, roundNumber: number): Promise<RoundSession | null> {
+    const res = await this.request.post('/api/sessions/session-for-participant-round', {
+      data: { participantId, roundNumber },
+    });
+    if (!res.ok()) return null;
+    const body = await res.json() as { session: Record<string, unknown>; sessionParticipant: Record<string, unknown> } | null;
+    if (!body) return null;
+    return {
+      session_id: body.session.id as string,
+      session_code: body.session.session_code as string,
+      role: body.sessionParticipant.role as string,
+      dyad_id: body.session.dyad_id as string,
+    };
   }
 
   /** Trigger pool-based matching for a slot. Returns null when no match yet. */
@@ -185,6 +201,25 @@ export class ApiHelper {
       sessionId,
       participantId,
       offerDetails,
+    });
+  }
+
+  /**
+   * Send an offer message in the same format the browser client uses.
+   * offerSelection maps issue IDs (e.g. 'I1', 'I2', …) to option indices (0, 1, 2).
+   */
+  sendOfferMessage(
+    sessionId: string,
+    participantId: string,
+    senderRole: string,
+    offerSelection: Record<string, number>,
+  ): Promise<Message> {
+    return this.json<Message>('POST', '/messages', {
+      sessionId,
+      participantId,
+      content: 'Offer',
+      messageType: 'offer',
+      metadata: { offer: offerSelection, senderRole },
     });
   }
 

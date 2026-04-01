@@ -27,14 +27,14 @@ test('3-round batch: unique opponents and roles per round', async ({ request }) 
   const api = new ApiHelper(request);
   await api.clearAll();
 
-  // Create 4 participants to ensure unique opponents across 3 rounds
-  // (requires at least 4 people: each person faces 3 unique opponents)
-  // For simplicity, we use 2 participants and just verify 3 rounds are seeded
+  // 6 participants are required: the condition_order cycles through 6 permutations,
+  // so with 6 participants every round produces exactly 3 condition-matched pairs
+  // with no repeat opponents — the minimum for 3 full rounds.
   const batch = await api.createBatch(12);
   const suffix = Date.now();
 
   const participants = await Promise.all(
-    [1, 2, 3, 4].map((n) => api.createParticipant(`round-p${n}-${suffix}@test.local`)),
+    [1, 2, 3, 4, 5, 6].map((n) => api.createParticipant(`round-p${n}-${suffix}@test.local`)),
   );
 
   // All join the batch
@@ -48,13 +48,14 @@ test('3-round batch: unique opponents and roles per round', async ({ request }) 
   for (let slot = 0; slot < 3; slot++) {
     const roundNumber = slot + 1;
 
-    // Queue first two participants for this round
-    await api.addToRoundQueue(participants[0].id, roundNumber);
-    await api.addToRoundQueue(participants[1].id, roundNumber);
-    await api.matchBatchForRound(batch.id, slot);
+    // Queue all 4 participants — matching algorithm rotates opponents to avoid repeats
+    for (const p of participants) {
+      await api.addToRoundQueue(p.id, roundNumber);
+    }
+    await api.matchBatchForRound(batch.id, roundNumber);
 
-    const s1 = await api.getOrCreateRoundSession(batch.id, participants[0].id, roundNumber);
-    const s2 = await api.getOrCreateRoundSession(batch.id, participants[1].id, roundNumber);
+    const s1 = await api.getSessionForParticipantRound(participants[0].id, roundNumber);
+    const s2 = await api.getSessionForParticipantRound(participants[1].id, roundNumber);
 
     if (!s1 || !s2) throw new Error(`Matching failed for round ${roundNumber}`);
 
@@ -86,28 +87,46 @@ test('debrief shows all 3 rounds after completing a 3-round batch', async ({ bro
   const suffix = Date.now();
   const p1 = await api.createParticipant(`debrief-p1-${suffix}@test.local`);
   const p2 = await api.createParticipant(`debrief-p2-${suffix}@test.local`);
-  await api.joinBatch(batch.id, p1.id);
-  await api.joinBatch(batch.id, p2.id);
+  // 6 participants needed: condition_order cycles through 6 permutations,
+  // guaranteeing condition-matched pairs for all 3 rounds with no repeats
+  const extras = await Promise.all(
+    [3, 4, 5, 6].map((n) => api.createParticipant(`debrief-p${n}-${suffix}@test.local`)),
+  );
+  const all = [p1, p2, ...extras];
+  for (const p of all) {
+    await api.joinBatch(batch.id, p.id);
+  }
 
   // Seed rounds 1 and 2 via API with agreements
   for (let slot = 0; slot < 2; slot++) {
     const roundNumber = slot + 1;
-    await api.addToRoundQueue(p1.id, roundNumber);
-    await api.addToRoundQueue(p2.id, roundNumber);
-    await api.matchBatchForRound(batch.id, slot);
+    for (const p of all) {
+      await api.addToRoundQueue(p.id, roundNumber);
+    }
+    await api.matchBatchForRound(batch.id, roundNumber);
 
-    const s1 = await api.getOrCreateRoundSession(batch.id, p1.id, roundNumber);
+    const s1 = await api.getSessionForParticipantRound(p1.id, roundNumber);
     if (!s1) throw new Error(`Match failed for round ${roundNumber}`);
     await api.endSession(s1.session_id, true, { issue1: 0, issue2: 0, issue3: 0 });
   }
 
   // Round 3: browser-test
-  await api.addToRoundQueue(p1.id, 3);
-  await api.addToRoundQueue(p2.id, 3);
-  await api.matchBatchForRound(batch.id, 2);
+  for (const p of all) {
+    await api.addToRoundQueue(p.id, 3);
+  }
+  await api.matchBatchForRound(batch.id, 3);
 
-  const s3p1 = await api.getOrCreateRoundSession(batch.id, p1.id, 3);
+  const s3p1 = await api.getSessionForParticipantRound(p1.id, 3);
   if (!s3p1) throw new Error('Match failed for round 3');
+
+  // With 6 participants, condition-order round-robin pairs p1 (slot 0, cond 'c' in round 3)
+  // with extras[0]/p3 (slot 2, also cond 'c' in round 3) — not p2.
+  const p1Partner = extras[0];
+
+  // Start the session via API (bypasses the RoundReadyPage lobby that normally does this)
+  await api.markBriefingReady(s3p1.session_id, p1.id);
+  await api.markBriefingReady(s3p1.session_id, p1Partner.id);
+  await api.startSession(s3p1.session_id);
 
   const ctxA = await browser.newContext();
   const ctxB = await browser.newContext();
@@ -115,33 +134,21 @@ test('debrief shows all 3 rounds after completing a 3-round batch', async ({ bro
   const pageB = await ctxB.newPage();
 
   try {
+    // Open both browsers on the negotiate page (session is already active)
     await pageA.goto(negotiateUrl(s3p1.session_id, p1.id));
-    await pageB.goto(negotiateUrl(s3p1.session_id, p2.id));
+    await pageB.goto(negotiateUrl(s3p1.session_id, p1Partner.id));
     await expect(pageA.locator('textarea').first()).toBeVisible({ timeout: 15_000 });
     await expect(pageB.locator('textarea').first()).toBeVisible({ timeout: 15_000 });
 
-    // Build offer from A
-    const makeBtn = pageA.getByRole('button', { name: /formal offers/i });
-    if (await makeBtn.isVisible({ timeout: 2_000 }).catch(() => false)) await makeBtn.click();
-    const makeOfferBtn = pageA.getByRole('button', { name: /make offer|build offer/i });
-    if (await makeOfferBtn.isVisible({ timeout: 3_000 }).catch(() => false)) await makeOfferBtn.click();
+    // Send offer via API (IssueSelector uses buttons not radio inputs; bypassing UI is more reliable)
+    await api.sendOfferMessage(s3p1.session_id, p1.id, s3p1.role, { I1: 0, I2: 0, I3: 0, I4: 0 });
 
-    const radios = pageA.locator('input[type="radio"]');
-    const count = await radios.count();
-    const seen = new Set<string>();
-    for (let i = 0; i < count; i++) {
-      const name = await radios.nth(i).getAttribute('name');
-      if (name && !seen.has(name)) { seen.add(name); await radios.nth(i).click(); }
-    }
-    await pageA.getByRole('button', { name: /submit offer|counter/i }).first().click();
-    const confirmBtn = pageA.getByRole('button', { name: /send offer/i });
-    if (await confirmBtn.isVisible({ timeout: 3_000 }).catch(() => false)) await confirmBtn.click();
-
-    // B accepts
+    // B sees the incoming offer and accepts
     await expect(pageB.getByRole('button', { name: /accept offer/i })).toBeVisible({ timeout: 15_000 });
     await pageB.getByRole('button', { name: /accept offer/i }).click();
 
-    await expect(pageA.getByText(/agreement reached|deal|agreed/i)).toBeVisible({ timeout: 15_000 });
+    // After agreement both participants are redirected — wait for pageA to leave the negotiate URL
+    await pageA.waitForURL(/post-survey|debrief|round-ready/, { timeout: 15_000 });
   } finally {
     await ctxA.close();
     await ctxB.close();
@@ -152,15 +159,15 @@ test('debrief shows all 3 rounds after completing a 3-round batch', async ({ bro
   const debrief = await ctx.newPage();
   try {
     await debrief.goto(debriefUrl(p1.id));
-    const body = await debrief.textContent('body') ?? '';
 
-    // Should mention round labels (Round A / Round B / Round C  or  Round 1/2/3)
+    // Wait for async data load — "Total:" only appears inside the roundPoints.length>0 block
+    await expect(debrief.getByText('Total:')).toBeVisible({ timeout: 15_000 });
+
+    // All 3 round labels should be present (Round A / Round B / Round C or Round 1/2/3)
+    const body = await debrief.textContent('body') ?? '';
     const hasAllRounds =
       (body.match(/round\s+(a|1)/i) && body.match(/round\s+(b|2)/i) && body.match(/round\s+(c|3)/i));
     expect(hasAllRounds).toBeTruthy();
-
-    // Total points should be visible
-    await expect(debrief.getByText(/total|bonus/i)).toBeVisible({ timeout: 10_000 });
   } finally {
     await ctx.close();
   }

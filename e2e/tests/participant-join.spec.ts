@@ -19,9 +19,9 @@ test.beforeAll(async ({ request }) => {
 test('invalid batch code shows error', async ({ page }) => {
   await page.goto('/');
   // Fill in a bogus code
-  const codeInput = page.getByPlaceholder(/code/i).or(page.getByLabel(/batch code/i));
+  const codeInput = page.getByPlaceholder('ABC123').or(page.getByLabel(/session code/i));
   await codeInput.fill('XXXXXX');
-  await page.getByRole('button', { name: /join|enter|start/i }).click();
+  await page.getByRole('button', { name: /continue|join|enter|start/i }).click();
   await expect(page.getByText(/not found|invalid|error/i)).toBeVisible({ timeout: 8_000 });
 });
 
@@ -32,12 +32,14 @@ test('valid batch code leads to join flow', async ({ page, request }) => {
   const batch = await api.createBatch(12);
 
   await page.goto('/');
-  const codeInput = page.getByPlaceholder(/code/i).or(page.getByLabel(/batch code/i));
-  await codeInput.fill(batch.code);
-  await page.getByRole('button', { name: /join|enter|start/i }).click();
+  const codeInput = page.getByPlaceholder('ABC123').or(page.getByLabel(/session code/i));
+  await codeInput.fill(batch.batch_code);
+  await page.getByRole('button', { name: /continue|join|enter|start/i }).click();
 
-  // Should move past the landing — either to an email/name input or a lobby
-  await expect(page).not.toHaveURL('/', { timeout: 10_000 });
+  // The app is a SPA so the URL may stay at /; look for content that appears after code entry
+  await expect(
+    page.getByRole('heading', { name: /ready to join|pre-survey|lobby|waiting/i }),
+  ).toBeVisible({ timeout: 10_000 });
 });
 
 test('participant appears in batch after joining via UI', async ({ page, request }) => {
@@ -47,9 +49,9 @@ test('participant appears in batch after joining via UI', async ({ page, request
   const batch = await api.createBatch(12);
 
   await page.goto('/');
-  const codeInput = page.getByPlaceholder(/code/i).or(page.getByLabel(/batch code/i));
-  await codeInput.fill(batch.code);
-  await page.getByRole('button', { name: /join|enter|start/i }).click();
+  const codeInput = page.getByPlaceholder('ABC123').or(page.getByLabel(/session code/i));
+  await codeInput.fill(batch.batch_code);
+  await page.getByRole('button', { name: /continue|join|enter|start/i }).click();
 
   // Fill email if prompted
   const emailInput = page.getByPlaceholder(/email/i).or(page.getByLabel(/email/i));

@@ -55,16 +55,21 @@ export async function createMatchedPair(
   await api.addToRoundQueue(p1.id, roundNumber);
   await api.addToRoundQueue(p2.id, roundNumber);
 
-  // 5. Trigger matching
-  await api.matchBatchForRound(batch.id, slotIndex);
+  // 5. Trigger matching (server expects 1-indexed slot, same as roundNumber)
+  await api.matchBatchForRound(batch.id, roundNumber);
 
   // 6. Retrieve session from each participant's perspective
-  const session1 = await api.getOrCreateRoundSession(batch.id, p1.id, roundNumber);
-  const session2 = await api.getOrCreateRoundSession(batch.id, p2.id, roundNumber);
+  const session1 = await api.getSessionForParticipantRound(p1.id, roundNumber);
+  const session2 = await api.getSessionForParticipantRound(p2.id, roundNumber);
 
   if (!session1 || !session2) {
     throw new Error(`Matching failed for batch ${batch.id} slot ${slotIndex}`);
   }
+
+  // 7. Start the session so the negotiate page is active (bypasses RoundReadyPage lobby)
+  await api.markBriefingReady(session1.session_id, p1.id);
+  await api.markBriefingReady(session1.session_id, p2.id);
+  await api.startSession(session1.session_id);
 
   return {
     batch,
@@ -183,11 +188,11 @@ export function negotiateUrl(sessionId: string, participantId: string): string {
 }
 
 export function preSurveyUrl(sessionId: string, participantId: string): string {
-  return `/pre-survey/${sessionId}?participant=${participantId}`;
+  return `/pre-survey/${participantId}?session=${sessionId}`;
 }
 
 export function postSurveyUrl(sessionId: string, participantId: string): string {
-  return `/post-survey/${sessionId}?participant=${participantId}`;
+  return `/post-survey/${participantId}?session=${sessionId}`;
 }
 
 export function debriefUrl(participantId: string): string {

@@ -94,16 +94,18 @@ export function ChatInterface({
     try {
       await onSendMessage(content)
       setInputValue('')
-      // Reset textarea height and re-focus for continued typing
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto'
-        textareaRef.current.focus()
       }
     } catch (error) {
       console.error('Failed to send message:', error)
       // Keep the message in input so user can retry
     } finally {
       setIsSending(false)
+      // Defer focus until after React re-renders the textarea as enabled
+      setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 0)
     }
   }
 

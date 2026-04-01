@@ -27,50 +27,26 @@ test.beforeAll(async ({ request }) => {
   await api.clearAll();
 });
 
-// Helper: open the Formal Offers panel if it's collapsed
-async function expandOfferPanel(page: import('@playwright/test').Page) {
-  const header = page.getByRole('button', { name: /formal offers/i });
-  if (await header.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    // Check if collapsed (ChevronDown visible)
-    const isCollapsed = await page.locator('button:has-text("Formal Offers") svg').first().isVisible();
-    if (isCollapsed) await header.click();
-  }
-}
-
-// Helper: select all offer options (pick index 0 for every issue)
+// Helper: select all offer options (pick index 0 for every issue) and submit builder.
+// Precondition: the OfferPanel must be expanded (it starts expanded; isCollapsed=false).
 async function buildOffer(page: import('@playwright/test').Page) {
-  await expandOfferPanel(page);
+  // The panel starts expanded. Wait for the "Make Offer" panel button (not the builder submit).
+  // This button is visible when no pending offer and showBuilder=false.
+  const panelOpenBtn = page.getByRole('button', { name: /^Make Offer$|^Make Counter-Offer$/ }).first();
+  await panelOpenBtn.waitFor({ state: 'visible', timeout: 8_000 });
+  await panelOpenBtn.click();
 
-  // Click "Make Offer" button to open builder
-  const makeOfferBtn = page.getByRole('button', { name: /make offer|build offer/i });
-  if (await makeOfferBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await makeOfferBtn.click();
+  // Now the OfferBuilder is shown. IssueSelector renders option buttons in .flex.flex-wrap.gap-2
+  // groups (one group per issue). Click the first option in each group.
+  await page.getByText('Select your proposed terms for each issue').waitFor({ timeout: 5_000 });
+  const optionGroups = page.locator('.flex.flex-wrap.gap-2');
+  const groupCount = await optionGroups.count();
+  for (let i = 0; i < groupCount; i++) {
+    await optionGroups.nth(i).getByRole('button').first().click();
   }
 
-  // Select first option for every issue (radio buttons or select)
-  const radios = page.locator('.offer-builder input[type="radio"], [data-offer-builder] input[type="radio"]');
-  const radioCount = await radios.count();
-  if (radioCount > 0) {
-    // Group radios by name and pick first of each group
-    const names = new Set<string>();
-    for (let i = 0; i < radioCount; i++) {
-      const name = await radios.nth(i).getAttribute('name');
-      if (name && !names.has(name)) {
-        names.add(name);
-        await radios.nth(i).click();
-      }
-    }
-  } else {
-    // Fallback: pick first option in any select inside the builder
-    const selects = page.locator('select');
-    const selectCount = await selects.count();
-    for (let i = 0; i < selectCount; i++) {
-      await selects.nth(i).selectOption({ index: 0 });
-    }
-  }
-
-  // Click submit/send in builder
-  await page.getByRole('button', { name: /submit offer|send offer|counter/i }).first().click();
+  // Click the builder submit button (also labeled "Make Offer" / "Make Counter-Offer") — last one
+  await page.getByRole('button', { name: /^Make Offer$|^Make Counter-Offer$/ }).last().click();
 }
 
 test('confirmation modal appears before offer is sent', async ({ browser, request }: { browser: Browser; request: never }) => {
@@ -176,16 +152,24 @@ test('reject then counter: accept button is visible on counter-offer (live test 
     // P2 rejects
     await pageB.getByRole('button', { name: /reject/i }).click();
 
-    // P2 should now see the offer builder for a counter-offer
-    await expect(pageB.getByRole('button', { name: /submit offer|counter/i }).first()).toBeVisible({ timeout: 8_000 });
+    // After rejection the OfferPanel auto-opens the builder (showBuilder=true).
+    // Wait for the builder header text which is always present in OfferBuilder.
+    await pageB.getByText('Select your proposed terms for each issue').waitFor({ timeout: 8_000 });
 
-    // P2 sends counter-offer
-    await buildOffer(pageB);
-    // After buildOffer the confirmation modal appears
-    const confirmBtn = pageB.getByRole('button', { name: /send offer/i });
-    if (await confirmBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await confirmBtn.click();
+    // Select one option per issue (first button in each .flex.flex-wrap.gap-2 group)
+    const counterGroups = pageB.locator('.flex.flex-wrap.gap-2');
+    const counterGroupCount = await counterGroups.count();
+    for (let i = 0; i < counterGroupCount; i++) {
+      await counterGroups.nth(i).getByRole('button').first().click();
     }
+
+    // Submit the counter-offer (button is now enabled because all options selected)
+    await pageB.getByRole('button', { name: /^Make Offer$|^Make Counter-Offer$/ }).last().click();
+
+    // Confirm in the confirmation modal
+    const confirmBtn = pageB.getByRole('button', { name: /send offer/i });
+    await expect(confirmBtn).toBeVisible({ timeout: 5_000 });
+    await confirmBtn.click();
 
     // *** Core regression: P1 must see Accept Offer button for P2's counter ***
     await expect(pageA.getByRole('button', { name: /accept offer/i })).toBeVisible({ timeout: 15_000 });
