@@ -19,7 +19,7 @@ import {
   Download,
   FileText
 } from 'lucide-react'
-import { 
+import {
   createBatch,
   matchBatchForRound,
   getBatchRoundQueueCounts,
@@ -31,12 +31,14 @@ import {
   getSessionEvents,
   fetchAdminSessions,
   fetchAdminBatches,
+  fetchBatchPoints,
   deleteSession,
   removeSessionParticipant,
   clearSessionParticipants,
   exportSessionData,
   ApiError
 } from '@/lib/data'
+import { getScenarioById, calculatePoints, getRoleKey } from '@/config/scenarios'
 import type { Session, SessionParticipant, ParticipantToken, ExperimentBatch } from '@/types/database.types'
 
 // Batches have no form fields; Create Batch is a single action
@@ -52,6 +54,17 @@ interface SessionWithParticipantCount extends Session {
 
 interface BatchWithCount extends ExperimentBatch {
   participant_count: number
+}
+
+interface BatchPointRow {
+  participant_id: string
+  email: string
+  session_id: string
+  round_number: number
+  negotiation_scenario: string | null
+  agreement_reached: boolean | null
+  final_agreement: Record<string, number> | null
+  role: string
 }
 
 // ============================================
@@ -98,6 +111,11 @@ function AdminPage() {
   
   // Participant management modal
   const [participantModalSession, setParticipantModalSession] = useState<SessionWithParticipantCount | null>(null)
+
+  // Batch points distribution
+  const [batchPointsId, setBatchPointsId] = useState<string | null>(null)
+  const [batchPointsData, setBatchPointsData] = useState<BatchPointRow[]>([])
+  const [isLoadingPoints, setIsLoadingPoints] = useState(false)
   
   // Timer state - trigger re-render every second for active session timers
   const [, setTimerTick] = useState(0)
@@ -243,6 +261,23 @@ function AdminPage() {
       }
     } finally {
       setIsCreating(false)
+    }
+  }
+
+  async function handleViewBatchPoints(batchId: string) {
+    if (batchPointsId === batchId) {
+      setBatchPointsId(null)
+      return
+    }
+    setIsLoadingPoints(true)
+    setBatchPointsId(batchId)
+    try {
+      const rows = await fetchBatchPoints(batchId)
+      setBatchPointsData(rows as BatchPointRow[])
+    } catch (err) {
+      console.error('Failed to load batch points:', err)
+    } finally {
+      setIsLoadingPoints(false)
     }
   }
 
@@ -1003,19 +1038,49 @@ function AdminPage() {
                               {new Date(batch.created_at).toLocaleDateString()}
                             </td>
                             <td className="py-3 px-4 text-right">
-                              <BatchMatchRoundButtons
-                                batchId={batch.id}
-                                batchCode={batch.batch_code}
-                                maxParticipants={batch.max_participants}
-                                queueCounts={batchQueueCounts[batch.id]}
-                                onMatched={fetchSessions}
-                                setError={setError}
-                              />
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewBatchPoints(batch.id)}
+                                  className="btn-secondary text-xs py-1 px-2 flex items-center gap-1"
+                                  title="View point distribution for this batch"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  Points
+                                </button>
+                                <BatchMatchRoundButtons
+                                  batchId={batch.id}
+                                  batchCode={batch.batch_code}
+                                  maxParticipants={batch.max_participants}
+                                  queueCounts={batchQueueCounts[batch.id]}
+                                  onMatched={fetchSessions}
+                                  setError={setError}
+                                />
+                              </div>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+
+                    {/* Batch point distribution panel */}
+                    {batchPointsId && batches.some(b => b.id === batchPointsId) && (
+                      <div className="mt-4 border border-neutral-200 rounded-lg overflow-hidden">
+                        <div className="px-4 py-2 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+                          <span className="text-sm font-medium text-neutral-700">
+                            Point Distribution — {batches.find(b => b.id === batchPointsId)?.batch_code}
+                          </span>
+                          <button onClick={() => setBatchPointsId(null)} className="text-neutral-400 hover:text-neutral-600">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {isLoadingPoints ? (
+                          <div className="p-4 text-center text-sm text-neutral-500">Loading…</div>
+                        ) : (
+                          <BatchPointsTable rows={batchPointsData} />
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1339,6 +1404,84 @@ function AdminSessionTimer({ session, onExtend }: AdminSessionTimerProps) {
       >
         <PlusCircle className="w-4 h-4" />
       </button>
+    </div>
+  )
+}
+
+// ============================================
+// Batch Points Distribution Table
+// ============================================
+
+function BatchPointsTable({ rows }: { rows: BatchPointRow[] }) {
+  if (rows.length === 0) {
+    return <p className="p-4 text-sm text-neutral-500">No session data found for this batch.</p>
+  }
+
+  // Group by participant, calculate total points per participant
+  const byParticipant = new Map<string, { email: string; rounds: { round: number; scenario: string | null; points: number; agreed: boolean }[]; total: number }>()
+
+  for (const row of rows) {
+    if (!byParticipant.has(row.participant_id)) {
+      byParticipant.set(row.participant_id, { email: row.email, rounds: [], total: 0 })
+    }
+    const entry = byParticipant.get(row.participant_id)!
+
+    let points = 0
+    if (row.agreement_reached && row.final_agreement && row.negotiation_scenario) {
+      const sc = getScenarioById(row.negotiation_scenario)
+      const rk = getRoleKey(row.role as 'pm' | 'developer', sc)
+      if (rk) points = calculatePoints(row.final_agreement, rk, sc)
+    }
+
+    entry.rounds.push({ round: row.round_number, scenario: row.negotiation_scenario, points, agreed: !!row.agreement_reached })
+    entry.total += points
+  }
+
+  const participants = [...byParticipant.values()].sort((a, b) => b.total - a.total)
+  const maxPoints = 600
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-neutral-200 bg-neutral-50">
+            <th className="text-left py-2 px-4 text-xs font-medium text-neutral-500">Participant</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-neutral-500">Rnd 1</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-neutral-500">Rnd 2</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-neutral-500">Rnd 3</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-neutral-500">Total</th>
+            <th className="text-left py-2 px-3 text-xs font-medium text-neutral-500">Bonus</th>
+          </tr>
+        </thead>
+        <tbody>
+          {participants.map(({ email, rounds, total }) => {
+            const roundsByNum = new Map(rounds.map(r => [r.round, r]))
+            return (
+              <tr key={email} className="border-b border-neutral-100 hover:bg-neutral-50">
+                <td className="py-2 px-4 text-xs text-neutral-600 font-mono">{email}</td>
+                {[1, 2, 3].map(n => {
+                  const r = roundsByNum.get(n)
+                  return (
+                    <td key={n} className="py-2 px-3 text-xs">
+                      {r ? (
+                        r.agreed
+                          ? <span className="text-neutral-800 font-medium">{r.points} pts</span>
+                          : <span className="text-neutral-400">0 (no deal)</span>
+                      ) : (
+                        <span className="text-neutral-300">—</span>
+                      )}
+                    </td>
+                  )
+                })}
+                <td className="py-2 px-3 text-xs font-bold text-neutral-900">{total} pts</td>
+                <td className="py-2 px-3 text-xs font-bold text-green-700">
+                  €{((total / maxPoints) * 10).toFixed(2)}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

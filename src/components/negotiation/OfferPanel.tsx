@@ -227,10 +227,18 @@ export function OfferPanel({
           
           {/* Make Offer Button - shown when no pending offer and builder not open */}
           {!pendingOffer && !showBuilder && (
-            <div className="text-center">
-              <p className="text-sm text-slate-500 mb-3">
-                Ready to make a formal offer? Build one below.
-              </p>
+            <div>
+              {/* Issue quick-reference so participants don't need to open the builder to recall what's being negotiated */}
+              <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 divide-y divide-slate-200">
+                {scenario.issues.map((issue) => (
+                  <div key={issue.id} className="px-3 py-2">
+                    <span className="text-xs font-semibold text-slate-700">{issue.label}</span>
+                    {issue.description && (
+                      <span className="text-xs text-slate-500"> — {issue.description}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
               <button
                 onClick={() => setShowBuilder(true)}
                 disabled={disabled}

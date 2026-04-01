@@ -525,6 +525,10 @@ export async function fetchAdminBatches(): Promise<unknown[]> {
   return apiFetch('/admin/batches')
 }
 
+export async function fetchBatchPoints(batchId: string): Promise<unknown[]> {
+  return apiFetch(`/admin/batches/${batchId}/points`)
+}
+
 export async function deleteSession(sessionId: string): Promise<void> {
   await apiFetch(`/admin/sessions/${sessionId}`, { method: 'DELETE' })
 }

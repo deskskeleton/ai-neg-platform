@@ -89,6 +89,39 @@ adminRouter.delete('/session-participants/:sessionId', async (req, res) => {
   }
 })
 
+/**
+ * GET /batches/:id/points -- per-participant point breakdown for a completed batch.
+ * Returns raw session data (scenario, role, final_agreement) so the frontend can
+ * call calculatePoints() with the existing payoff tables.
+ */
+adminRouter.get('/batches/:id/points', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT
+         p.id            AS participant_id,
+         p.email,
+         s.id            AS session_id,
+         s.round_number,
+         s.negotiation_scenario,
+         s.agreement_reached,
+         s.final_agreement,
+         sp.role
+       FROM batch_participants bp
+       JOIN participants p ON p.id = bp.participant_id
+       JOIN session_participants sp ON sp.participant_id = p.id
+       JOIN sessions s ON s.id = sp.session_id
+         AND s.round_number IS NOT NULL
+       WHERE bp.batch_id = $1
+       ORDER BY p.id, s.round_number`,
+      [req.params.id]
+    )
+    res.json(rows)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    res.status(500).json({ error: msg })
+  }
+})
+
 /** GET /export/:sessionId -- full session data export (JSON) */
 adminRouter.get('/export/:sessionId', async (req, res) => {
   try {
