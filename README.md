@@ -152,8 +152,7 @@ ai-neg-platform/
 ├── docker-compose.yml            # Local development stack
 ├── docker-compose.test.yml       # Ephemeral test stack (tmpfs DB, no Ollama)
 ├── playwright.config.ts          # E2E test config (local)
-├── playwright.config.dsri.ts     # E2E smoke config (live DSRI)
-└── obsolete/                     # Historical docs from Supabase era
+└── playwright.config.dsri.ts     # E2E smoke config (live DSRI)
 ```
 
 ## Routes
