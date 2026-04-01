@@ -57,7 +57,7 @@ assistantRouter.get('/health', async (_req, res) => {
  */
 assistantRouter.post('/query', async (req, res) => {
   try {
-    const { sessionId, participantId, query: userQuery, conversationHistory = [] } = req.body
+    const { sessionId, participantId, query: userQuery } = req.body
     if (!sessionId || !participantId || !userQuery) {
       res.status(400).json({ error: 'sessionId, participantId, and query are required' })
       return
@@ -66,13 +66,23 @@ assistantRouter.post('/query', async (req, res) => {
     const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434'
     const model = process.env.LLM_MODEL || 'llama3.2'
 
-    // Build message array for Ollama's OpenAI-compatible chat endpoint
+    // Fetch conversation history from DB (authoritative source — avoids stale client state)
+    const priorQueries = await query(
+      `SELECT query_text, response_text FROM assistant_queries
+       WHERE session_id = $1 AND participant_id = $2
+       ORDER BY timestamp ASC`,
+      [sessionId, participantId]
+    ) as Array<{ query_text: string; response_text: string }>
+
+    const conversationHistory = priorQueries.flatMap((q) => [
+      { role: 'user', content: q.query_text },
+      { role: 'assistant', content: q.response_text },
+    ])
+
+    // Build message array for Ollama's chat endpoint
     const messages = [
       { role: 'system', content: SYSTEM_PROMPT },
-      ...conversationHistory.map((m: { role: string; content: string }) => ({
-        role: m.role,
-        content: m.content,
-      })),
+      ...conversationHistory,
       { role: 'user', content: userQuery },
     ]
 

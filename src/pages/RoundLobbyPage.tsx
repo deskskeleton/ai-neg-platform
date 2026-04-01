@@ -6,16 +6,10 @@
  * so the partner (matched by the other's call) also gets redirected to briefing.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { Loader2, Users } from 'lucide-react'
-import { addToRoundQueue, getOrCreateRoundSession, tryMatchPoolRound, getSessionForParticipantRound, getBatchParticipant, getBatch, getBatchHasSchedule, getBatchRoundQueueCounts, matchBatchForRound } from '@/lib/data'
-import { getRoundLabel as getRoundLabelUtil } from '@/utils/roundLabels'
-
-function getRoundLabel(condition: string | null): string {
-  if (!condition) return 'this round'
-  return getRoundLabelUtil(condition) || condition
-}
+import { addToRoundQueue, getOrCreateRoundSession, tryMatchPoolRound, getSessionForParticipantRound, getBatch, getBatchHasSchedule, getBatchRoundQueueCounts, matchBatchForRound } from '@/lib/data'
 
 function RoundLobbyPage() {
   const { slotIndex: slotParam } = useParams<{ slotIndex: string }>()
@@ -24,21 +18,10 @@ function RoundLobbyPage() {
   const participantId = searchParams.get('participant')
   const batchId = searchParams.get('batch')
   const slotIndex = slotParam ? parseInt(slotParam, 10) : 0
-  const [roundLabel, setRoundLabel] = useState<string>('')
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const hasTriggeredAutoMatchRef = useRef(false)
   /** When true, batch has pre-seeded schedule; do not use condition-based fallback so we only match with designated partner. */
   const hasPreSeededScheduleRef = useRef<boolean | null>(null)
-
-  useEffect(() => {
-    if (!batchId || !participantId || slotIndex < 1 || slotIndex > 3) return
-
-    getBatchParticipant(batchId, participantId).then((bp) => {
-      const order = bp?.condition_order as string[] | undefined
-      const condition = order?.[slotIndex - 1] ?? null
-      setRoundLabel(getRoundLabel(condition))
-    })
-  }, [batchId, participantId, slotIndex])
 
   // Add to round queue as soon as lobby loads so we are in the queue before first poll
   useEffect(() => {
@@ -154,7 +137,7 @@ function RoundLobbyPage() {
           Waiting for a partner
         </h1>
         <p className="text-neutral-600 mb-6">
-          {roundLabel ? `Waiting for a partner for ${roundLabel}...` : 'Finding someone for this round...'}
+          Finding a partner for this round…
         </p>
         <div className="flex justify-center">
           <Loader2 className="w-10 h-10 text-primary-600 animate-spin" />

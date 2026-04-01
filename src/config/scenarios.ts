@@ -583,7 +583,7 @@ const ROUND_THEME_V1A: RoundTheme = {
 
 const ROUND_THEME_V1B: RoundTheme = {
   roles: {
-    roleA: { id: 'leaseholder', label: 'Lease Holder', shortLabel: 'Lease', color: 'purple' },
+    roleA: { id: 'leaseholder', label: 'Rental Contract Holder', shortLabel: 'Contract Holder', color: 'purple' },
     roleB: { id: 'tenant', label: 'Incoming Tenant', shortLabel: 'Tenant', color: 'orange' },
   },
   issueLabels: [
@@ -592,14 +592,14 @@ const ROUND_THEME_V1B: RoundTheme = {
     { label: 'Length of Stay Commitment', description: 'Minimum period the tenant commits to staying',
       options: ['Long-term (12 months)', 'Medium-term (6 months)', 'Short-term (3 months)'] },
     { label: 'Furnishing Responsibility', description: 'Who provides furniture for common areas',
-      options: ['Tenant furnishes', 'Shared responsibility', 'Lease holder furnishes'] },
+      options: ['Tenant furnishes', 'Shared responsibility', 'Contract holder furnishes'] },
     { label: 'Utility Cost Split', description: 'How utility bills are divided',
       options: ['Fixed monthly amount', 'Usage-based split', 'Equal percentage split'] },
   ],
   briefings: {
     roleA: {
-      title: 'Your Role: Lease Holder',
-      overview: `You are the current lease holder looking for a roommate to share your apartment. You've been living here for a year and have the primary relationship with the landlord. You need to negotiate terms with a potential new tenant.`,
+      title: 'Your Role: Rental Contract Holder',
+      overview: `You are the current rental contract holder looking for a roommate to share your apartment. You've been living here for a year and have the primary relationship with the landlord. You need to negotiate terms with a potential new tenant.`,
       priorities: [
         'You value different options differently across the four issues',
         'Your point values are shown in the payoff table — use them to guide your strategy',
@@ -609,7 +609,7 @@ const ROUND_THEME_V1B: RoundTheme = {
     },
     roleB: {
       title: 'Your Role: Incoming Tenant',
-      overview: `You are looking for a room in a shared apartment. You've found a place you like but need to negotiate the terms with the current lease holder before moving in.`,
+      overview: `You are looking for a room in a shared apartment. You've found a place you like but need to negotiate the terms with the current rental contract holder before moving in.`,
       priorities: [
         'You value different options differently across the four issues',
         'Your point values are shown in the payoff table — use them to guide your strategy',
@@ -620,7 +620,7 @@ const ROUND_THEME_V1B: RoundTheme = {
   },
   shared: {
     title: 'Student Housing Agreement',
-    context: `Two students are negotiating terms for a shared apartment. The lease holder has an available room and the incoming tenant is looking for housing. Both want a fair arrangement but have different preferences.`,
+    context: `Two students are negotiating terms for a shared apartment. The rental contract holder has an available room and the incoming tenant is looking for housing. Both want a fair arrangement but have different preferences.`,
     goal: `Reach an agreement on ALL four issues within the time limit. You earn points based on the final agreement. Try to maximize your points while reaching a mutually acceptable deal.`,
     timeLimit: 10,
     maxAssistantQueries: 100,

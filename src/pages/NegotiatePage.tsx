@@ -24,6 +24,7 @@ import { ScenarioInfo } from '@/components/chat/ScenarioInfo'
 import { AssistantPanel } from '@/components/assistant'
 import { OfferPanel, PayoffReference, type OfferSelection } from '@/components/negotiation'
 import { SCENARIO_CONFIG, calculatePoints, getRoleKey, getScenarioById, type ScenarioConfig } from '@/config/scenarios'
+import { getRoundLabel } from '@/utils/roundLabels'
 import type { Session, Message, ParticipantRole } from '@/types/database.types'
 
 // ============================================
@@ -489,6 +490,11 @@ function NegotiatePage() {
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="font-semibold text-neutral-900">Negotiation Session</h1>
+            {getRoundLabel(session.negotiation_scenario) && (
+              <span className="text-sm font-medium text-primary-600 bg-primary-50 px-2 py-1 rounded">
+                {getRoundLabel(session.negotiation_scenario)}
+              </span>
+            )}
             <span className="text-sm text-neutral-500 font-mono bg-neutral-100 px-2 py-1 rounded">
               {session.session_code}
             </span>

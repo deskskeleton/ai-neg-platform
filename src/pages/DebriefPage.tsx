@@ -241,6 +241,10 @@ function DebriefPage() {
                 <span className="text-amber-900">Total:</span>
                 <span className="text-amber-900">{totalPoints} pts</span>
               </div>
+              <div className="pt-1 flex justify-between text-sm font-bold text-green-800">
+                <span>Performance bonus:</span>
+                <span>€{((totalPoints / 600) * 10).toFixed(2)}</span>
+              </div>
             </div>
           )}
           {completionCode && (
@@ -269,12 +273,6 @@ function DebriefPage() {
               <span className="text-amber-700">Show-up fee:</span>
               <span className="font-semibold text-amber-900 ml-2">
                 {DEBRIEF_CONFIG.payment.showUpFee}
-              </span>
-            </div>
-            <div>
-              <span className="text-amber-700">Performance bonus:</span>
-              <span className="font-semibold text-amber-900 ml-2">
-                {DEBRIEF_CONFIG.payment.performanceRange}
               </span>
             </div>
           </div>

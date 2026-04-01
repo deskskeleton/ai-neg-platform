@@ -559,7 +559,7 @@ function PostSurveyPage() {
           min={1}
           max={7}
           minLabel="Not at all"
-          maxLabel="Perfectly"
+          maxLabel="Completely"
           value={formValues[item.id as keyof SurveyData] as number}
           onChange={(val) => setValue(item.id as keyof SurveyData, val)}
           required
@@ -658,7 +658,7 @@ function PostSurveyPage() {
                     min={1}
                     max={7}
                     minLabel="Not at all"
-                    maxLabel="Perfectly"
+                    maxLabel="Completely"
                     value={roundSurveyValues[item.id] as number}
                     onChange={(val) => setRoundSurveyValues(prev => ({ ...prev, [item.id]: val }))}
                     required

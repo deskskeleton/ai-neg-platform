@@ -85,6 +85,7 @@ function AdminPage() {
   const [batches, setBatches] = useState<BatchWithCount[]>([])
   const [batchQueueCounts, setBatchQueueCounts] = useState<Record<string, { 1: number; 2: number; 3: number }>>({})
   const [isLoading, setIsLoading] = useState(true)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
@@ -212,6 +213,7 @@ function AdminPage() {
       } else {
         setBatchQueueCounts({})
       }
+      setHasLoaded(true)
     } catch (err) {
       console.error('Failed to fetch sessions:', err)
       setError('Failed to load sessions. Check your backend configuration.')
@@ -636,8 +638,8 @@ function AdminPage() {
               </p>
             </div>
             <div className="flex gap-3">
-              <button 
-                onClick={() => fetchSessions(true)}
+              <button
+                onClick={() => fetchSessions(false)}
                 className="btn-secondary flex items-center gap-2"
                 disabled={isLoading}
               >
@@ -924,11 +926,19 @@ function AdminPage() {
 
         {/* Sessions List */}
         <div className="card">
-          <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-            Sessions
-          </h2>
-          
-          {isLoading ? (
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-neutral-900">
+              Sessions
+            </h2>
+            {isLoading && hasLoaded && (
+              <span className="flex items-center gap-1 text-xs text-neutral-400">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                Refreshing…
+              </span>
+            )}
+          </div>
+
+          {isLoading && !hasLoaded ? (
             <div className="text-center py-12">
               <RefreshCw className="w-8 h-8 text-neutral-400 mx-auto mb-2 animate-spin" />
               <p className="text-neutral-600">Loading sessions...</p>
