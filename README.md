@@ -115,11 +115,14 @@ ai-neg-platform/
 │   │   ├── chat/                 # Chat interface, timer, scenario info
 │   │   ├── negotiation/          # Offer system (builder, display, payoffs)
 │   │   ├── questionnaire/        # Survey components (Likert, slider, etc.)
+│   │   ├── ui/                   # Shared UI primitives
 │   │   └── layout/               # Error boundary
 │   ├── config/
 │   │   ├── scenarios.ts          # Negotiation scenarios and payoffs
 │   │   ├── llm.ts                # LLM provider config
 │   │   └── payoffs.ts            # Payoff matrices
+│   ├── hooks/                    # Custom React hooks
+│   ├── utils/                    # Utility helpers (round labels, etc.)
 │   ├── lib/
 │   │   ├── data/                 # Data layer (REST adapter, types)
 │   │   └── assistant/            # Assistant client (direct URL)
@@ -141,8 +144,15 @@ ai-neg-platform/
 │   ├── postgres-deployment.yaml
 │   ├── ollama-deployment.yaml
 │   └── DEPLOY.md                 # Step-by-step deployment guide
+├── e2e/                          # End-to-end tests
+│   ├── tests/                    # Playwright test specs
+│   ├── smoke/                    # DSRI smoke tests
+│   └── fixtures/                 # Test helpers and API utilities
 ├── Dockerfile                    # Multi-stage build (frontend + server)
 ├── docker-compose.yml            # Local development stack
+├── docker-compose.test.yml       # Ephemeral test stack (tmpfs DB, no Ollama)
+├── playwright.config.ts          # E2E test config (local)
+├── playwright.config.dsri.ts     # E2E smoke config (live DSRI)
 └── obsolete/                     # Historical docs from Supabase era
 ```
 
@@ -156,6 +166,7 @@ ai-neg-platform/
 | `/p/:token` | Public | Pre-generated participant URL |
 | `/pre-survey/:id` | Participant | Pre-negotiation questionnaire |
 | `/round-lobby/:slotIndex` | Participant | Batch: wait for partner |
+| `/round-ready/:sessionId` | Participant | Batch: confirm ready before negotiation |
 | `/briefing/:sessionId` | Participant | Role briefing + comprehension quiz |
 | `/negotiate/:sessionId` | Participant | Main negotiation interface |
 | `/post-survey/:id` | Participant | Post-negotiation questionnaire |
@@ -176,6 +187,8 @@ The Express server exposes REST endpoints under `/api/`:
 | `/api/surveys` | Survey completion tracking |
 | `/api/batches` | Batch experiments and matchmaking |
 | `/api/admin` | Admin-only session/batch management |
+| `/api/time` | Server time synchronization |
+| `/api/health` | Health check endpoint |
 
 ## Configuration
 
@@ -200,7 +213,8 @@ See `openshift/DEPLOY.md` for step-by-step instructions to deploy on the univers
 3. **Ollama** — self-hosted LLM with persistent model storage (CPU by default; GPU toleration commented in manifest)
 
 **Production notes:**
-- `VITE_ADMIN_PASSWORD` must be set at build time (baked into the frontend bundle); the server also requires `ADMIN_SECRET` for the server-side admin route guard
+- `VITE_ADMIN_PASSWORD` is baked into the frontend bundle at build time. The Dockerfile ships a default value for convenience — this is a client-side password for the admin dashboard of a short-lived lab tool, not a credential for any external service. Override it for your own deployment: `docker build --build-arg VITE_ADMIN_PASSWORD=yourpassword .`
+- The server also requires `ADMIN_SECRET` for the server-side admin route guard
 - The HAProxy route timeout is set to 4500 s (75 min) to cover hour-long WebSocket sessions
 - The image is built on-cluster in the `sbe-dad-aineg` namespace — no external registry required (see `DEPLOY.md`)
 
@@ -231,16 +245,39 @@ The round schedule is pre-seeded when the last participant joins. Everyone is gu
 
 ```bash
 # Frontend
-npm run dev        # Vite dev server (port 5173)
-npm run build      # Production build
-npm run typecheck  # TypeScript validation
+npm run dev            # Vite dev server (port 5173)
+npm run build          # Production build
+npm run typecheck      # TypeScript validation
 
 # Server
 cd server
-npm run dev        # Express dev server with hot reload (port 3000)
-npm run build      # Compile TypeScript
-npm run start      # Run compiled server
+npm run dev            # Express dev server with hot reload (port 3000)
+npm run build          # Compile TypeScript
+npm run start          # Run compiled server
+npm run typecheck      # TypeScript validation
+
+# E2E Tests
+npm run test:e2e           # Run Playwright tests (headless)
+npm run test:e2e:headed    # Run with visible browser
+npm run test:e2e:ui        # Open Playwright interactive UI
 ```
+
+## E2E Testing
+
+The platform includes a Playwright test suite covering core flows:
+
+| Test spec | Coverage |
+|-----------|----------|
+| `participant-join` | Token-based and code-based participant entry |
+| `negotiation-chat` | Real-time chat messaging between paired participants |
+| `offer-flow` | Offer, accept, reject, and counter-offer mechanics |
+| `admin-batch` | Batch creation and admin dashboard persistence |
+| `full-batch-flow` | End-to-end pool-based batch with multiple participants |
+| `session-completion` | Full session lifecycle through debrief |
+
+A separate DSRI smoke suite (`e2e/smoke/dsri-smoke.spec.ts`) verifies Ollama/LLM wiring on live deployments.
+
+Tests run against `docker-compose.test.yml`, which spins up an ephemeral PostgreSQL (tmpfs) and disables Ollama for speed.
 
 ## Security Notes
 
