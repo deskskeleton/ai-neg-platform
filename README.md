@@ -121,7 +121,6 @@ ai-neg-platform/
 │   │   ├── scenarios.ts          # Negotiation scenarios and payoffs
 │   │   ├── llm.ts                # LLM provider config
 │   │   └── payoffs.ts            # Payoff matrices
-│   ├── hooks/                    # Custom React hooks
 │   ├── utils/                    # Utility helpers (round labels, etc.)
 │   ├── lib/
 │   │   ├── data/                 # Data layer (REST adapter, types)
@@ -136,7 +135,9 @@ ai-neg-platform/
 │   │   ├── realtime.ts           # LISTEN/NOTIFY → Socket.io
 │   │   └── index.ts              # Server entry point
 │   ├── db/
-│   │   └── init.sql              # Full database schema
+│   │   ├── init.sql              # Full database schema
+│   │   ├── migration_add_12_batch.sql
+│   │   └── migration_scenario_fix.sql
 │   └── scripts/
 │       └── backup.sh             # Database backup script
 ├── openshift/                    # DSRI deployment manifests
@@ -163,12 +164,12 @@ ai-neg-platform/
 | `/admin` | Password | Researcher dashboard |
 | `/join/:code` | Public | Join with session or batch code |
 | `/p/:token` | Public | Pre-generated participant URL |
-| `/pre-survey/:id` | Participant | Pre-negotiation questionnaire |
+| `/pre-survey/:participantId` | Participant | Pre-negotiation questionnaire |
 | `/round-lobby/:slotIndex` | Participant | Batch: wait for partner |
-| `/round-ready/:sessionId` | Participant | Batch: confirm ready before negotiation |
 | `/briefing/:sessionId` | Participant | Role briefing + comprehension quiz |
+| `/round-ready/:sessionId` | Participant | Batch: confirm ready before negotiation |
 | `/negotiate/:sessionId` | Participant | Main negotiation interface |
-| `/post-survey/:id` | Participant | Post-negotiation questionnaire |
+| `/post-survey/:participantId` | Participant | Post-negotiation questionnaire |
 | `/debrief` | Participant | Study debrief + completion code |
 
 ## API Endpoints
