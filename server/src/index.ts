@@ -26,6 +26,7 @@ import { tokensRouter } from './routes/tokens.js'
 import { surveysRouter } from './routes/surveys.js'
 import { batchesRouter } from './routes/batches.js'
 import { adminRouter } from './routes/admin.js'
+import { paymentCodeRouter } from './routes/payment-code.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -51,6 +52,7 @@ app.use('/api/tokens', tokensRouter)
 app.use('/api/surveys', surveysRouter)
 app.use('/api/batches', batchesRouter)
 app.use('/api/admin', adminRouter)
+app.use('/api/payment-code', paymentCodeRouter)
 
 // Server time endpoint (for client clock-sync)
 app.get('/api/time', (_req, res) => {

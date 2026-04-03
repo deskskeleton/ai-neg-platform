@@ -386,12 +386,9 @@ COMMENT ON COLUMN session_participants.treatment_condition IS 'A/B: payoff_alway
 
 CREATE INDEX IF NOT EXISTS idx_session_participants_treatment ON session_participants(treatment_condition);
 
-ALTER TABLE participants
-ADD COLUMN IF NOT EXISTS completion_code TEXT DEFAULT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_completion_code ON participants(completion_code) WHERE completion_code IS NOT NULL;
-
-COMMENT ON COLUMN participants.completion_code IS 'Unique code shown after final survey for BEELab payment verification';
+-- completion_code column removed: payment codes are now stateless HMAC-signed
+-- tokens generated on-the-fly, never stored in the database.
+ALTER TABLE participants DROP COLUMN IF EXISTS completion_code;
 
 ALTER TABLE event_log
 ADD COLUMN IF NOT EXISTS round_id UUID DEFAULT NULL;

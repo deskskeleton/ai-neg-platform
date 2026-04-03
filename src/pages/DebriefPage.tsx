@@ -14,7 +14,7 @@
 import { useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { CheckCircle, Mail, Shield, FileText, ExternalLink, Copy } from 'lucide-react';
-import { getParticipant, generateCompletionCode, getRoundSessionsForParticipant, getSessionParticipantByIds, getSession } from '@/lib/data';
+import { generatePaymentCode, getRoundSessionsForParticipant, getSessionParticipantByIds, getSession } from '@/lib/data';
 import { getScenarioById, calculatePoints, getRoleKey } from '@/config/scenarios';
 import { getRoundLabel } from '@/utils/roundLabels';
 
@@ -74,10 +74,13 @@ const DEBRIEF_CONFIG = {
   
   // Payment information (for BEELab)
   payment: {
-    instructions: `Please proceed to the lab administrator to receive your payment. 
-      Your session code may be required for verification.`,
-    showUpFee: '€5.00',
-    performanceRange: '€0 - €10',
+    instructions: `Your payment consists of a €10.00 show-up fee plus a performance bonus
+      (up to €10.00). Please save your completion code below — you will need it to
+      receive your payment separately.`,
+    showUpFee: '€10.00',
+    baseFee: 10,
+    maxBonus: 10,
+    maxPoints: 600,
   },
 };
 
@@ -89,29 +92,12 @@ function DebriefPage() {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session');
   const participantId = searchParams.get('participant');
-  const [completionCode, setCompletionCode] = useState<string | null>(null);
+  const [paymentCode, setPaymentCode] = useState<string | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [roundPoints, setRoundPoints] = useState<Array<{ round: number; scenario?: string; points: number; agreed: boolean }>>([]);
   const [totalPoints, setTotalPoints] = useState<number>(0);
-
-  useEffect(() => {
-    if (!participantId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const p = await getParticipant(participantId);
-        if (cancelled) return;
-        const code = p?.completion_code
-          ? p.completion_code
-          : await generateCompletionCode(participantId);
-        if (!cancelled) setCompletionCode(code);
-      } catch (e) {
-        if (!cancelled) setCodeError(e instanceof Error ? e.message : 'Could not load completion code');
-      }
-    })();
-    return () => { cancelled = true };
-  }, [participantId]);
+  const [pointsLoaded, setPointsLoaded] = useState(false);
 
   // Load points from all round sessions
   useEffect(() => {
@@ -137,7 +123,7 @@ function DebriefPage() {
               pts.push({ round: rs.round_number ?? 0, scenario: rs.negotiation_scenario ?? undefined, points: 0, agreed: false });
             }
           }
-          if (!cancelled) { setRoundPoints(pts); setTotalPoints(total); }
+          if (!cancelled) { setRoundPoints(pts); setTotalPoints(total); setPointsLoaded(true); }
         } else if (sessionId) {
           // Single session mode
           const sess = await getSession(sessionId);
@@ -147,19 +133,42 @@ function DebriefPage() {
           if (sp && sess.agreement_reached && sess.final_agreement) {
             const rk = getRoleKey(sp.role, sc);
             const p = rk ? calculatePoints(sess.final_agreement as Record<string, number>, rk, sc) : 0;
-            if (!cancelled) { setRoundPoints([{ round: 1, points: p, agreed: true }]); setTotalPoints(p); }
+            if (!cancelled) { setRoundPoints([{ round: 1, points: p, agreed: true }]); setTotalPoints(p); setPointsLoaded(true); }
+          } else {
+            if (!cancelled) setPointsLoaded(true);
           }
+        } else {
+          if (!cancelled) setPointsLoaded(true);
         }
       } catch (e) {
         console.error('Failed to load points:', e);
+        if (!cancelled) setPointsLoaded(true);
       }
     })();
     return () => { cancelled = true };
   }, [participantId, sessionId]);
 
+  // Generate payment code once points are known
+  useEffect(() => {
+    if (!pointsLoaded) return;
+    let cancelled = false;
+    const bonus = Math.min(totalPoints / DEBRIEF_CONFIG.payment.maxPoints, 1) * DEBRIEF_CONFIG.payment.maxBonus;
+    const totalEuro = DEBRIEF_CONFIG.payment.baseFee + bonus;
+    const amountCents = Math.round(totalEuro * 100);
+    (async () => {
+      try {
+        const code = await generatePaymentCode(amountCents);
+        if (!cancelled) setPaymentCode(code);
+      } catch (e) {
+        if (!cancelled) setCodeError(e instanceof Error ? e.message : 'Could not generate payment code');
+      }
+    })();
+    return () => { cancelled = true };
+  }, [pointsLoaded, totalPoints]);
+
   const copyCode = () => {
-    if (completionCode) {
-      navigator.clipboard.writeText(completionCode);
+    if (paymentCode) {
+      navigator.clipboard.writeText(paymentCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -243,16 +252,20 @@ function DebriefPage() {
               </div>
               <div className="pt-1 flex justify-between text-sm font-bold text-green-800">
                 <span>Performance bonus:</span>
-                <span>€{((totalPoints / 600) * 10).toFixed(2)}</span>
+                <span>€{(Math.min(totalPoints / DEBRIEF_CONFIG.payment.maxPoints, 1) * DEBRIEF_CONFIG.payment.maxBonus).toFixed(2)}</span>
+              </div>
+              <div className="pt-2 border-t border-amber-300 flex justify-between text-base font-bold text-green-900">
+                <span>Total payout:</span>
+                <span>€{(DEBRIEF_CONFIG.payment.baseFee + Math.min(totalPoints / DEBRIEF_CONFIG.payment.maxPoints, 1) * DEBRIEF_CONFIG.payment.maxBonus).toFixed(2)}</span>
               </div>
             </div>
           )}
-          {completionCode && (
+          {paymentCode && (
             <div className="mb-4 p-3 bg-amber-100 border border-amber-300 rounded-lg">
-              <p className="text-sm font-medium text-amber-900 mb-1">Your completion code (for BEELab):</p>
+              <p className="text-sm font-medium text-amber-900 mb-1">Your payment code (save this — you will need it to receive your payment):</p>
               <div className="flex items-center gap-2">
                 <code className="text-lg font-mono font-bold text-amber-900 tracking-wider">
-                  {completionCode}
+                  {paymentCode}
                 </code>
                 <button
                   type="button"
@@ -273,6 +286,12 @@ function DebriefPage() {
               <span className="text-amber-700">Show-up fee:</span>
               <span className="font-semibold text-amber-900 ml-2">
                 {DEBRIEF_CONFIG.payment.showUpFee}
+              </span>
+            </div>
+            <div>
+              <span className="text-amber-700">Performance bonus:</span>
+              <span className="font-semibold text-amber-900 ml-2">
+                up to €{DEBRIEF_CONFIG.payment.maxBonus.toFixed(2)}
               </span>
             </div>
           </div>

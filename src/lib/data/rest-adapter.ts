@@ -104,9 +104,9 @@ export async function updateParticipant(id: string, updates: Partial<Participant
   return apiFetch(`/participants/${id}`, { method: 'PATCH', body: JSON.stringify(updates) })
 }
 
-export async function generateCompletionCode(participantId: string): Promise<string> {
-  const data = await apiFetch<{ completion_code: string }>(`/participants/${participantId}/completion-code`, { method: 'POST' })
-  return data.completion_code
+export async function generatePaymentCode(amountCents: number): Promise<string> {
+  const data = await apiFetch<{ code: string }>('/payment-code', { method: 'POST', body: JSON.stringify({ amountCents }) })
+  return data.code
 }
 
 // ---------------------------------------------------------------------------

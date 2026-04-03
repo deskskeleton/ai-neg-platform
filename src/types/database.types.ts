@@ -28,7 +28,6 @@ export interface Database {
           demographic_data: Json
           pre_questionnaire_data: Json
           post_questionnaire_data: Json
-          completion_code: string | null
           post_round_survey_data: Json
         }
         Insert: {
@@ -38,7 +37,6 @@ export interface Database {
           demographic_data?: Json
           pre_questionnaire_data?: Json
           post_questionnaire_data?: Json
-          completion_code?: string | null
           post_round_survey_data?: Json
         }
         Update: {
@@ -48,7 +46,6 @@ export interface Database {
           demographic_data?: Json
           pre_questionnaire_data?: Json
           post_questionnaire_data?: Json
-          completion_code?: string | null
           post_round_survey_data?: Json
         }
         Relationships: []

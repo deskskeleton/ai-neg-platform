@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Code Decoder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f8fafc; color: #1e293b; padding: 2rem; }
+    .container { max-width: 480px; margin: 0 auto; }
+    h1 { font-size: 1.25rem; margin-bottom: 1.5rem; }
+    label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem; }
+    input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 0.375rem;
+            font-size: 1rem; margin-bottom: 1rem; font-family: monospace; }
+    input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.3); }
+    button { background: #2563eb; color: white; border: none; padding: 0.5rem 1.25rem;
+             border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .result { margin-top: 1.5rem; padding: 1rem; border-radius: 0.5rem; font-size: 1.125rem; font-weight: 600; }
+    .result.ok { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .result.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .note { margin-top: 1.5rem; font-size: 0.75rem; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Payment Code Decoder</h1>
+
+    <label for="secret">HMAC Secret</label>
+    <input id="secret" type="password" placeholder="Paste COMPLETION_CODE_SECRET here">
+
+    <label for="code">Payment Code</label>
+    <input id="code" type="text" placeholder="e.g. ABCDE-FGHJK" maxlength="11"
+           oninput="this.value = this.value.toUpperCase()">
+
+    <button onclick="decode()">Decode</button>
+
+    <div id="result"></div>
+
+    <p class="note">
+      This page runs entirely in your browser. Nothing is sent to any server.
+      Open this file directly from disk (file://) or a local server.
+    </p>
+  </div>
+
+  <script>
+    const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const CODE_LENGTH = 10;
+
+    async function hmacSha256(secret, data) {
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+      );
+      const sig = await crypto.subtle.sign('HMAC', key, data);
+      return new Uint8Array(sig);
+    }
+
+    async function decode() {
+      const resultEl = document.getElementById('result');
+      const secret = document.getElementById('secret').value.trim();
+      const raw = document.getElementById('code').value.replace(/-/g, '').trim();
+
+      if (!secret) { show('Enter the HMAC secret.', false); return; }
+      if (raw.length !== CODE_LENGTH) { show('Code must be 10 characters (excluding dash).', false); return; }
+
+      // Decode base-30
+      let num = 0n;
+      for (const c of raw) {
+        const idx = CHARS.indexOf(c);
+        if (idx === -1) { show(`Invalid character: ${c}`, false); return; }
+        num = num * 30n + BigInt(idx);
+      }
+
+      // Convert to 6 bytes
+      const hex = num.toString(16).padStart(12, '0');
+      const bytes = new Uint8Array(6);
+      for (let i = 0; i < 6; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+
+      const amountBuf = bytes.slice(0, 2);
+      const sigBuf = bytes.slice(2, 6);
+
+      // Verify HMAC
+      const hmac = await hmacSha256(secret, amountBuf);
+      const expected = hmac.slice(0, 4);
+      const valid = expected.every((b, i) => b === sigBuf[i]);
+
+      if (!valid) { show('Invalid code or wrong secret.', false); return; }
+
+      const cents = (amountBuf[0] << 8) | amountBuf[1];
+      show(`Payout: \u20ac${(cents / 100).toFixed(2)}`, true);
+    }
+
+    function show(msg, ok) {
+      const el = document.getElementById('result');
+      el.className = 'result ' + (ok ? 'ok' : 'err');
+      el.textContent = msg;
+    }
+  </script>
+</body>
+</html>
