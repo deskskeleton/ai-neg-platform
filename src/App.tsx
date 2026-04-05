@@ -60,7 +60,7 @@ function App() {
           {/* Role Briefing Route - Confidential role materials */}
           <Route path="/briefing/:sessionId" element={<RoleBriefingPage />} />
 
-          {/* Round Ready - Both participants ready before 10-min timer starts */}
+          {/* Round Ready - Both participants ready before 15-min timer starts */}
           <Route path="/round-ready/:sessionId" element={<RoundReadyPage />} />
           
           {/* Negotiate Route - Main negotiation interface (wrapped separately for better error isolation) */}

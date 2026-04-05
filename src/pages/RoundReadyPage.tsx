@@ -1,7 +1,7 @@
 /**
  * RoundReadyPage
  *
- * Lobby after briefing: both participants must be ready before the round (and 10-min timer) starts.
+ * Lobby after briefing: both participants must be ready before the round (and 15-min timer) starts.
  * On load we mark this participant ready; when both are ready we count down then start the session and go to negotiate.
  */
 

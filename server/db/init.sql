@@ -56,7 +56,7 @@ CREATE TABLE sessions (
     ended_at TIMESTAMPTZ,
     status TEXT DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'completed', 'cancelled')),
     negotiation_scenario TEXT,
-    time_limit_minutes INTEGER DEFAULT 20,
+    time_limit_minutes INTEGER DEFAULT 15,
     agreement_reached BOOLEAN,
     final_agreement JSONB DEFAULT '{}'::jsonb
 );
@@ -592,7 +592,7 @@ BEGIN
     dyad_id, round_number, pair_session_id
   )
   VALUES (
-    v_session_code, 'waiting', v_scenario, 45,
+    v_session_code, 'waiting', v_scenario, 15,
     v_dyad_id, p_round_number, p_pair_session_id
   )
   RETURNING id INTO v_session_id;
@@ -731,7 +731,7 @@ BEGIN
         dyad_id, round_number
     )
     VALUES (
-        v_session_code, 'waiting', v_my_condition, 45,
+        v_session_code, 'waiting', v_my_condition, 15,
         v_dyad_id, p_slot_index
     )
     RETURNING id INTO v_session_id;
@@ -762,7 +762,7 @@ COMMENT ON FUNCTION try_match_pool_round IS 'Pool matchmaking: match by (slot, c
 
 -- ============================================================
 -- Migration 011: Round Timer and Ready Lobby
--- 10 min per round (was 45); add briefing_ready_at for "both ready" lobby
+-- 15 min per round (was 45); add briefing_ready_at for "both ready" lobby
 -- ============================================================
 
 ALTER TABLE session_participants
@@ -773,7 +773,7 @@ COMMENT ON COLUMN session_participants.briefing_ready_at IS 'When participant cl
 CREATE INDEX IF NOT EXISTS idx_session_participants_briefing_ready
 ON session_participants(session_id, briefing_ready_at);
 
--- try_match_pool_round — updated to 10 min per round
+-- try_match_pool_round — updated to 15 min per round
 CREATE OR REPLACE FUNCTION try_match_pool_round(p_participant_id UUID, p_slot_index INTEGER)
 RETURNS TABLE(session_id UUID, session_code TEXT, role TEXT, dyad_id UUID) AS $$
 DECLARE
@@ -841,7 +841,7 @@ BEGIN
         dyad_id, round_number
     )
     VALUES (
-        v_session_code, 'waiting', v_my_condition, 10,
+        v_session_code, 'waiting', v_my_condition, 15,
         v_dyad_id, p_slot_index
     )
     RETURNING id INTO v_session_id;
@@ -867,9 +867,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-COMMENT ON FUNCTION try_match_pool_round IS 'Pool matchmaking: 10 min per round; match by (slot, condition), no past opponent';
+COMMENT ON FUNCTION try_match_pool_round IS 'Pool matchmaking: 15 min per round; match by (slot, condition), no past opponent';
 
--- create_round_for_pair — updated to 10 min per round
+-- create_round_for_pair — updated to 15 min per round
 CREATE OR REPLACE FUNCTION create_round_for_pair(p_pair_session_id UUID, p_round_number INTEGER)
 RETURNS UUID AS $$
 DECLARE
@@ -928,7 +928,7 @@ BEGIN
     dyad_id, round_number, pair_session_id
   )
   VALUES (
-    v_session_code, 'waiting', v_scenario, 10,
+    v_session_code, 'waiting', v_scenario, 15,
     v_dyad_id, p_round_number, p_pair_session_id
   )
   RETURNING id INTO v_session_id;
@@ -942,7 +942,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-COMMENT ON FUNCTION create_round_for_pair IS 'Creates a round session for a pair; 10 min per round, payoff v1.a/b/c by round';
+COMMENT ON FUNCTION create_round_for_pair IS 'Creates a round session for a pair; 15 min per round, payoff v1.a/b/c by round';
 
 
 -- ============================================================
@@ -1084,7 +1084,7 @@ BEGIN
         dyad_id, round_number
     )
     VALUES (
-        v_session_code, 'waiting', p_condition, 10,
+        v_session_code, 'waiting', p_condition, 15,
         v_dyad_id, p_slot_index
     )
     RETURNING id INTO v_session_id;

@@ -18,7 +18,7 @@ export const sessionsRouter = Router()
 /** POST / -- create a new session via the create_session RPC */
 sessionsRouter.post('/', async (req, res) => {
   try {
-    const { scenario = null, timeLimitMinutes = 45, aiQueryLimit = 100 } = req.body
+    const { scenario = null, timeLimitMinutes = 15, aiQueryLimit = 100 } = req.body
     // Call the RPC function that auto-generates a session code
     const session = await queryOne(
       `SELECT * FROM create_session($1, $2)`,
