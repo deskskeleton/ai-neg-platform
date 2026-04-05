@@ -93,7 +93,7 @@ assistantRouter.post('/query', async (req, res) => {
         model,
         messages,
         stream: false,
-        options: { num_predict: 150, temperature: 0.7 },
+        options: { num_predict: 300, temperature: 0.7 },
       }),
     })
 
