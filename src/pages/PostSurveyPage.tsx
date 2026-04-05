@@ -1,18 +1,25 @@
 /**
  * PostSurveyPage Component
- * 
- * Post-negotiation questionnaire collecting:
- * - NASA-TLX Workload (2 items, 7-point scale)
- * - State Trust in AI Assistant (3 items - same as pre-survey expected trust)
- * - Subjective Value Inventory (8 items, with N/A for agreement-related items)
+ *
+ * Two modes:
+ *
+ * PER-ROUND survey (after each of 3 rounds):
+ * - SVI Relationship (4 items)
+ * - SVI Instrumental (4 items, with N/A for agreement-related items)
+ * - NASA-TLX Mental Demand (1 item, 1-7)
+ * - NASA-TLX Effort (1 item, 1-7)
  * - Comprehension Check (role, agreement status)
+ * - Opponent Priority Guess
+ *
+ * FINAL post-session survey (once after round 3):
+ * - State Trust in AI Assistant (3 items)
  * - Open Feedback (optional)
- * 
+ *
  * Features:
  * - Read-only chat history sidebar for reference while answering
  * - Two-column layout (chat | survey)
  * - N/A option for items that reference the agreement (if no agreement reached)
- * 
+ *
  * Flow: NegotiatePage → PostSurveyPage → DebriefPage
  */
 
@@ -42,9 +49,7 @@ import type { Json, Message, Session } from '@/types/database.types';
 
 const SURVEY_CONFIG = {
   sections: [
-    'Workload',
-    'AI Assistant',  // State Trust
-    'Outcomes',
+    'AI Assistant',  // State Trust (final survey only)
     'Feedback',
   ],
   
@@ -110,23 +115,12 @@ const likertOrNA = z.number().refine(
 // Helper: validates a standard Likert scale value (1-7)
 const likertScale = z.number().min(1).max(7);
 
-// Final survey schema: only non-round-dependent items
-// SVI Relationship + comprehension check are now per-round (in postRoundSchema)
+// Final survey schema: only state trust + feedback (NASA-TLX and SVI Instrumental are now per-round)
 const surveySchema = z.object({
-  // NASA-TLX (1-7 scale, adapted from standard 21-point to align with Likert)
-  mental_demand: likertScale,
-  effort: likertScale,
-
   // State Trust in AI Assistant (1-7, measured after negotiation)
   state_ai1: likertScale,
   state_ai2: likertScale,
   state_ai3: likertScale,
-
-  // SVI Instrumental (1-7 or N/A for agreement-related items)
-  svi_satisfaction: likertOrNA,  // N/A allowed
-  svi_balance: likertOrNA,       // N/A allowed
-  svi_forfeit: likertScale,      // No N/A - can answer even without agreement
-  svi_legitimacy: likertOrNA,    // N/A allowed
 
   // Open feedback (optional)
   feedback: z.string().optional(),
@@ -134,13 +128,21 @@ const surveySchema = z.object({
 
 type SurveyData = z.infer<typeof surveySchema>;
 
-/** Per-round post-survey schema: relationship + comprehension + opponent priority guess */
+/** Per-round post-survey schema: relationship + instrumental + NASA-TLX + comprehension + opponent priority guess */
 const postRoundSchema = z.object({
   // SVI Relationship (per-round feelings about this round's counterpart)
   svi_relationship: likertScale,
   svi_respect: likertScale,
   svi_again: likertScale,
   svi_constructive: likertScale,
+  // SVI Instrumental (per-round outcomes, N/A allowed for agreement-related items)
+  svi_satisfaction: likertOrNA,
+  svi_balance: likertOrNA,
+  svi_forfeit: likertScale,
+  svi_legitimacy: likertOrNA,
+  // NASA-TLX (per-round workload)
+  mental_demand: likertScale,
+  effort: likertScale,
   // Comprehension check
   role_check: z.string().min(1, 'Please select your role'),
   agreement_check: z.string().min(1, 'Please indicate if you reached an agreement'),
@@ -318,10 +320,8 @@ function PostSurveyPage() {
   
   const getSectionFields = (section: number): (keyof SurveyData)[] => {
     switch (section) {
-      case 1: return ['mental_demand', 'effort'];
-      case 2: return ['state_ai1', 'state_ai2', 'state_ai3'];  // State Trust
-      case 3: return ['svi_satisfaction', 'svi_balance', 'svi_forfeit', 'svi_legitimacy'];  // Outcomes
-      case 4: return []; // Feedback is optional
+      case 1: return ['state_ai1', 'state_ai2', 'state_ai3'];  // State Trust
+      case 2: return []; // Feedback is optional
       default: return [];
     }
   };
@@ -381,6 +381,9 @@ function PostSurveyPage() {
     try {
       const p = await getParticipant(participantId);
       const existing = (p?.post_round_survey_data as Record<string, unknown>) ?? {};
+      // Helper to convert N/A values to null for storage
+      const valueOrNull = (val: number) => val === NA_VALUE ? null : val;
+
       const merged = {
         ...existing,
         [String(round)]: {
@@ -390,11 +393,26 @@ function PostSurveyPage() {
             willing_again: parsed.data.svi_again,
             constructive: parsed.data.svi_constructive,
           },
+          svi_instrumental: {
+            satisfaction: valueOrNull(parsed.data.svi_satisfaction),
+            satisfaction_is_na: parsed.data.svi_satisfaction === NA_VALUE,
+            balance: valueOrNull(parsed.data.svi_balance),
+            balance_is_na: parsed.data.svi_balance === NA_VALUE,
+            forfeit: parsed.data.svi_forfeit,
+            forfeit_reversed: true,
+            legitimacy: valueOrNull(parsed.data.svi_legitimacy),
+            legitimacy_is_na: parsed.data.svi_legitimacy === NA_VALUE,
+          },
+          nasa_tlx: {
+            mental_demand: parsed.data.mental_demand,
+            effort: parsed.data.effort,
+          },
           comprehension_check: {
             role: parsed.data.role_check,
             reached_agreement: parsed.data.agreement_check === 'yes',
           },
           opponent_priority_guess: parsed.data.opponent_priority_guess,
+          completed_at: new Date().toISOString(),
         },
       };
       await updateParticipant(participantId, {
@@ -440,38 +458,18 @@ function PostSurveyPage() {
     setSubmitError(null);
     
     try {
-      // Helper to convert N/A values to null for storage
-      const valueOrNull = (val: number) => val === NA_VALUE ? null : val;
-      
       // Structure the data for storage
+      // NASA-TLX and SVI Instrumental are now per-round (in post_round_survey_data)
       const surveyData = {
-        nasa_tlx: {
-          mental_demand: data.mental_demand,
-          effort: data.effort,
-        },
         // State Trust - same items as Expected Trust, measured after negotiation
         ai_trust_state: {
           ai1: data.state_ai1,
           ai2: data.state_ai2,
           ai3: data.state_ai3,
         },
-        subjective_value_inventory: {
-          instrumental: {
-            satisfaction: valueOrNull(data.svi_satisfaction),
-            satisfaction_is_na: data.svi_satisfaction === NA_VALUE,
-            balance: valueOrNull(data.svi_balance),
-            balance_is_na: data.svi_balance === NA_VALUE,
-            forfeit: data.svi_forfeit, // Note: reverse-scored in analysis
-            forfeit_reversed: true,
-            legitimacy: valueOrNull(data.svi_legitimacy),
-            legitimacy_is_na: data.svi_legitimacy === NA_VALUE,
-          },
-          // Note: SVI Relationship and comprehension check are now per-round
-          // (stored in post_round_survey_data for each round)
-        },
         feedback: data.feedback || null,
         completed_at: new Date().toISOString(),
-        version: '2.0', // Updated version for new schema with state trust
+        version: '3.0', // v3: NASA-TLX + SVI Instrumental moved to per-round
       };
       
       // Save to database (include round for multi-round; final survey overwrites or merges per design)
@@ -497,35 +495,10 @@ function PostSurveyPage() {
   // RENDER HELPERS
   // ============================================
   
-  const renderWorkloadSection = () => (
-    <QuestionSection
-      title="Mental Workload"
-      sectionNumber={1}
-      description="Please rate your experience during the negotiation."
-    >
-      {SURVEY_CONFIG.nasaTlxItems.map((item) => (
-        <SliderScale
-          key={item.id}
-          question={item.text}
-          min={1}
-          max={7}
-          step={1}
-          minLabel={item.minLabel}
-          maxLabel={item.maxLabel}
-          value={formValues[item.id as keyof SurveyData] as number}
-          onChange={(val) => setValue(item.id as keyof SurveyData, val)}
-          required
-          error={!!errors[item.id as keyof SurveyData]}
-          errorMessage="Please select a value"
-        />
-      ))}
-    </QuestionSection>
-  );
-  
   const renderStateTrustSection = () => (
     <QuestionSection
       title="AI Assistant Experience"
-      sectionNumber={2}
+      sectionNumber={1}
       description="After using the AI assistant during the negotiation, please rate your experience."
     >
       {SURVEY_CONFIG.stateTrustItems.map((item) => (
@@ -546,40 +519,13 @@ function PostSurveyPage() {
     </QuestionSection>
   );
   
-  const renderInstrumentalSection = () => (
-    <QuestionSection
-      title="Negotiation Outcomes"
-      sectionNumber={3}
-      description="Please rate how you feel about the outcomes of the negotiation. Select N/A if you did not reach an agreement."
-    >
-      {SURVEY_CONFIG.sviInstrumentalItems.map((item) => (
-        <LikertScale
-          key={item.id}
-          question={item.text}
-          min={1}
-          max={7}
-          minLabel="Not at all"
-          maxLabel="Completely"
-          value={formValues[item.id as keyof SurveyData] as number}
-          onChange={(val) => setValue(item.id as keyof SurveyData, val)}
-          required
-          reverseScored={item.reversed}
-          allowNA={item.allowNA}
-          naLabel="N/A"
-          error={!!errors[item.id as keyof SurveyData]}
-          errorMessage="Please select a response"
-        />
-      ))}
-    </QuestionSection>
-  );
-  
-  // Note: renderRelationshipSection removed — SVI Relationship and comprehension
-  // check are now per-round (in the minimal/per-round survey mode above)
+  // Note: Workload (NASA-TLX), SVI Instrumental, and SVI Relationship are now
+  // per-round (in the minimal/per-round survey mode above)
 
   const renderFeedbackSection = () => (
     <QuestionSection
       title="Additional Feedback"
-      sectionNumber={4}
+      sectionNumber={2}
       description="Your feedback helps us improve future experiments. (Optional)"
     >
       <TextInput
@@ -596,10 +542,8 @@ function PostSurveyPage() {
   
   const renderCurrentSection = () => {
     switch (currentSection) {
-      case 1: return renderWorkloadSection();
-      case 2: return renderStateTrustSection();
-      case 3: return renderInstrumentalSection();
-      case 4: return renderFeedbackSection();
+      case 1: return renderStateTrustSection();
+      case 2: return renderFeedbackSection();
       default: return null;
     }
   };
@@ -644,7 +588,7 @@ function PostSurveyPage() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
             <div className="max-w-3xl mx-auto px-4 py-4">
-              <h1 className="text-xl font-semibold text-slate-900">Quick Question (Round {round})</h1>
+              <h1 className="text-xl font-semibold text-slate-900">Post-Round Survey (Round {round})</h1>
             </div>
           </header>
           <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
@@ -667,11 +611,53 @@ function PostSurveyPage() {
               </QuestionSection>
             </div>
 
+            {/* SVI Instrumental (per-round) */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+              <QuestionSection title="Negotiation Outcomes" sectionNumber={2} description="Please rate how you feel about the outcomes of this round. Select N/A if you did not reach an agreement.">
+                {SURVEY_CONFIG.sviInstrumentalItems.map((item) => (
+                  <LikertScale
+                    key={item.id}
+                    question={item.text}
+                    min={1}
+                    max={7}
+                    minLabel="Not at all"
+                    maxLabel="Completely"
+                    value={roundSurveyValues[item.id] as number}
+                    onChange={(val) => setRoundSurveyValues(prev => ({ ...prev, [item.id]: val }))}
+                    required
+                    reverseScored={item.reversed}
+                    allowNA={item.allowNA}
+                    naLabel="N/A"
+                  />
+                ))}
+              </QuestionSection>
+            </div>
+
+            {/* NASA-TLX (per-round) */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
+              <QuestionSection title="Mental Workload" sectionNumber={3} description="Please rate your experience during this round.">
+                {SURVEY_CONFIG.nasaTlxItems.map((item) => (
+                  <SliderScale
+                    key={item.id}
+                    question={item.text}
+                    min={1}
+                    max={7}
+                    step={1}
+                    minLabel={item.minLabel}
+                    maxLabel={item.maxLabel}
+                    value={roundSurveyValues[item.id] as number}
+                    onChange={(val) => setRoundSurveyValues(prev => ({ ...prev, [item.id]: val }))}
+                    required
+                  />
+                ))}
+              </QuestionSection>
+            </div>
+
             {/* Comprehension Check (per-round) */}
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-              <QuestionSection title="Comprehension Check" sectionNumber={2} description="Please confirm your understanding of this round.">
+              <QuestionSection title="Comprehension Check" sectionNumber={4} description="Please confirm your understanding of this round.">
                 <RadioGroup
-                  label="What was your role in this round?"
+                  label="What was your assigned role in this round?"
                   options={[
                     { value: scenario.roles.roleA.id, label: scenario.roles.roleA.label },
                     { value: scenario.roles.roleB.id, label: scenario.roles.roleB.label },
@@ -681,7 +667,7 @@ function PostSurveyPage() {
                   required
                 />
                 <RadioGroup
-                  label="Did you and your partner reach an agreement in this round?"
+                  label="Did you and your counterpart reach an agreement?"
                   options={[
                     { value: 'yes', label: 'Yes, we reached an agreement' },
                     { value: 'no', label: 'No, we did not reach an agreement' },
@@ -695,7 +681,7 @@ function PostSurveyPage() {
 
             {/* Opponent Priority Guess */}
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-              <QuestionSection title="Opponent Priority" sectionNumber={3} description="Which issue do you think was most important to your opponent?">
+              <QuestionSection title="Opponent Priority" sectionNumber={5} description="Which issue do you think was most important to your counterpart?">
                 <RadioGroup
                   label="Select the issue"
                   options={scenario.issues.map(issue => ({ value: issue.id, label: `${issue.id}. ${issue.label}` }))}
@@ -716,7 +702,7 @@ function PostSurveyPage() {
             <button
               type="button"
               onClick={onSubmitMinimal}
-              disabled={isSubmitting || !opponentPriorityGuess}
+              disabled={isSubmitting || !opponentPriorityGuess || !roundSurveyValues.mental_demand || !roundSurveyValues.effort}
               className="btn-primary w-full flex items-center justify-center gap-2"
             >
               {isSubmitting ? 'Submitting...' : 'Continue'}

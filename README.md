@@ -13,7 +13,7 @@ This platform facilitates behavioral research experiments on negotiation with op
 - **Real-time chat** — Live negotiation between paired participants (WebSocket)
 - **Formal offer system** — Structured offer / accept / reject / counter-offer mechanics
 - **AI assistant** — Rate-limited LLM coaching via self-hosted Ollama (configurable model)
-- **Data collection** — Pre/post questionnaires (demographics, trust scales, NASA-TLX, SVI)
+- **Data collection** — Pre-survey (demographics, trust scales), per-round survey (SVI, NASA-TLX, comprehension), post-session survey (state trust)
 - **Experiment batches** — Pool-based runs with three rounds and shuffled scenario order; matchmaking pairs participants per round
 
 ## Architecture
