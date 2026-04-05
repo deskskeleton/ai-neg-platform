@@ -571,7 +571,7 @@ const ROUND_THEME_V1A: RoundTheme = {
     title: 'Group Project Contract',
     context: `Two students are negotiating the terms of a mandatory group project. Both want the project to succeed but have different working styles and preferences for how to divide responsibilities.`,
     goal: `Reach an agreement on ALL four issues within the time limit. You earn points based on the final agreement. Try to maximize your points while reaching a mutually acceptable deal.`,
-    timeLimit: 10,
+    timeLimit: 15,
     maxAssistantQueries: 100,
   },
 };
@@ -622,7 +622,7 @@ const ROUND_THEME_V1B: RoundTheme = {
     title: 'Student Housing Agreement',
     context: `Two students are negotiating terms for a shared apartment. The rental contract holder has an available room and the incoming tenant is looking for housing. Both want a fair arrangement but have different preferences.`,
     goal: `Reach an agreement on ALL four issues within the time limit. You earn points based on the final agreement. Try to maximize your points while reaching a mutually acceptable deal.`,
-    timeLimit: 10,
+    timeLimit: 15,
     maxAssistantQueries: 100,
   },
 };
@@ -673,7 +673,7 @@ const ROUND_THEME_V1C: RoundTheme = {
     title: 'Student Organization Budget',
     context: `Two committee members from a student organization are negotiating how to allocate limited funds and volunteer effort between their teams. Both want the organization to succeed but have different team needs.`,
     goal: `Reach an agreement on ALL four issues within the time limit. You earn points based on the final agreement. Try to maximize your points while reaching a mutually acceptable deal.`,
-    timeLimit: 10,
+    timeLimit: 15,
     maxAssistantQueries: 100,
   },
 };

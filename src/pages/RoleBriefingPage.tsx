@@ -150,7 +150,7 @@ function RoleBriefingPage() {
     setQuizSubmitted(true);
   }
 
-  // Handle continue: go to round-ready lobby so both participants start the 10-min timer together
+  // Handle continue: go to round-ready lobby so both participants start the 15-min timer together
   function handleContinue() {
     if (!isQuizPassed || !sessionId) return;
     const params = new URLSearchParams({ participant: participantId ?? '' });
