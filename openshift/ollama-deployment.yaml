@@ -13,7 +13,7 @@
 #
 # On first deploy, pull the model:
 #   POD=$(oc get pods -l app=ollama -o jsonpath='{.items[0].metadata.name}')
-#   oc exec $POD -- ollama pull llama3.2:3b
+#   oc exec $POD -- ollama pull llama3.1:8b
 #
 # The PVC ensures the model persists across pod restarts.
 # ============================================
@@ -55,6 +55,9 @@ spec:
       containers:
         - name: ollama
           image: ollama/ollama
+          env:
+            - name: OLLAMA_NUM_PARALLEL
+              value: "4"
           ports:
             - containerPort: 11434
           volumeMounts:

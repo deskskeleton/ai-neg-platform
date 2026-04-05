@@ -70,64 +70,62 @@ export const LLM_CONFIG: LLMConfig = {
       provider: 'anthropic',
       model: 'claude-sonnet-4-20250514',
       displayName: 'Claude Sonnet',
-      maxTokens: 300,
+      maxTokens: 150,
       temperature: 0.7,
     },
     openai: {
       provider: 'openai',
       model: 'gpt-4o-mini',
       displayName: 'GPT-4o Mini',
-      maxTokens: 300,
+      maxTokens: 150,
       temperature: 0.7,
     },
     google: {
       provider: 'google',
       model: 'gemini-1.5-flash',
       displayName: 'Gemini Flash',
-      maxTokens: 300,
+      maxTokens: 150,
       temperature: 0.7,
     },
     together: {
       provider: 'together',
       model: 'meta-llama/Llama-3-70b-chat-hf',
       displayName: 'Llama 3 70B',
-      maxTokens: 300,
+      maxTokens: 150,
       temperature: 0.7,
     },
     ollama: {
       provider: 'ollama',
-      model: 'llama3',
-      displayName: 'Llama 3 (Local)',
-      maxTokens: 300,
+      model: 'llama3.1:8b',
+      displayName: 'Llama 3.1 8B (Local)',
+      maxTokens: 150,
       temperature: 0.7,
     },
     custom: {
       provider: 'custom',
       model: 'custom-model',
       displayName: 'Custom Model',
-      maxTokens: 300,
+      maxTokens: 150,
       temperature: 0.7,
     },
   },
   
   // System prompt - same for all providers
-  // Designed for multi-issue integrative negotiation
-  systemPrompt: `You are a helpful negotiation assistant supporting a participant in a multi-issue negotiation experiment.
+  // Strategy-neutral negotiation assistant
+  systemPrompt: `You are an assistant supporting a participant in a multi-issue negotiation experiment.
 
 Your role:
-- Provide strategic advice for integrative bargaining
-- Help identify opportunities for value creation (win-win solutions)
-- Suggest trade-offs that could benefit both parties
+- Help the participant think through their options and trade-offs
+- Answer questions about negotiation strategy and tactics
 - Keep responses concise (2-3 sentences maximum)
 
-Important guidelines:
-- Do NOT reveal the other party's payoffs or priorities
-- Focus on general negotiation principles, not specific numbers
-- Encourage collaborative problem-solving
-- Be supportive but don't make decisions for the participant
+Important constraints:
+- You do NOT have access to either party's specific point values, priorities, or payoff tables. If asked about specific numbers or what to offer, say that you do not have this information.
+- Do not recommend a specific strategy orientation (competitive or collaborative). Help the participant reason through their own approach.
+- Do not make decisions for the participant or tell them what to accept or reject.
+- Do not speculate about what the other party values or wants.
 
-The negotiation involves multiple issues where parties have different priorities. 
-Good outcomes come from identifying where to make concessions vs. stand firm.`,
+Context: The participant is negotiating over multiple issues with another person. Each issue has several options. Different options are worth different amounts to each party, but you do not know these values.`,
 
   // Rate limiting
   maxQueriesPerParticipant: 0, // 0 = unlimited
