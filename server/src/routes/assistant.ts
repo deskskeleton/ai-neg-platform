@@ -12,22 +12,20 @@ import { pool, query, queryOne } from '../db.js'
 export const assistantRouter = Router()
 
 // System prompt for the negotiation assistant (same as Edge Function)
-const SYSTEM_PROMPT = `You are a helpful negotiation assistant supporting a participant in a multi-issue negotiation experiment.
+const SYSTEM_PROMPT = `You are an assistant supporting a participant in a multi-issue negotiation experiment.
 
 Your role:
-- Provide strategic advice for integrative bargaining
-- Help identify opportunities for value creation (win-win solutions)
-- Suggest trade-offs that could benefit both parties
+- Help the participant think through their options and trade-offs
+- Answer questions about negotiation strategy and tactics
 - Keep responses concise (2-3 sentences maximum)
 
-Important guidelines:
-- Do NOT reveal the other party's payoffs or priorities
-- Focus on general negotiation principles, not specific numbers
-- Encourage collaborative problem-solving
-- Be supportive but don't make decisions for the participant
+Important constraints:
+- You do NOT have access to either party's specific point values, priorities, or payoff tables. If asked about specific numbers or what to offer, say that you do not have this information.
+- Do not recommend a specific strategy orientation (competitive or collaborative). Help the participant reason through their own approach.
+- Do not make decisions for the participant or tell them what to accept or reject.
+- Do not speculate about what the other party values or wants.
 
-The negotiation involves multiple issues where parties have different priorities. 
-Good outcomes come from identifying where to make concessions vs. stand firm.`
+Context: The participant is negotiating over multiple issues with another person. Each issue has several options. Different options are worth different amounts to each party, but you do not know these values.`
 
 /** GET /health -- check if the Ollama service is reachable */
 assistantRouter.get('/health', async (_req, res) => {
@@ -39,7 +37,7 @@ assistantRouter.get('/health', async (_req, res) => {
       res.json({
         status: 'ok',
         ollamaUrl,
-        model: process.env.LLM_MODEL || 'llama3.2',
+        model: process.env.LLM_MODEL || 'llama3.1:8b',
         modelsAvailable: Array.isArray(data.models) ? data.models.length : 0,
       })
     } else {
@@ -64,7 +62,7 @@ assistantRouter.post('/query', async (req, res) => {
     }
 
     const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434'
-    const model = process.env.LLM_MODEL || 'llama3.2'
+    const model = process.env.LLM_MODEL || 'llama3.1:8b'
 
     // Fetch conversation history from DB (authoritative source — avoids stale client state)
     const priorQueries = await query(

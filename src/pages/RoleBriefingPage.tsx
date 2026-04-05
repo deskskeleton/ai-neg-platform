@@ -449,6 +449,14 @@ function RoleBriefingPage() {
           )}
         </div>
 
+        {/* AI Assistant Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-blue-900 mb-2">About the AI Assistant</h3>
+          <p className="text-sm text-blue-800">
+            During the negotiation, you will have access to an AI assistant that can discuss general negotiation strategy. The assistant does not have access to your point values, your partner's point values, or the chat between you and your partner. It provides general advice only.
+          </p>
+        </div>
+
         {/* Comprehension Quiz */}
         <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 mb-6">
           <h3 className="font-semibold text-slate-900 mb-4">
