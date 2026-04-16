@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   Plus, 
   Users, 
@@ -36,6 +36,7 @@ import {
   removeSessionParticipant,
   clearSessionParticipants,
   exportSessionData,
+  exportBatchData,
   ApiError
 } from '@/lib/data'
 import { getScenarioById, calculatePoints, getRoleKey } from '@/config/scenarios'
@@ -50,6 +51,7 @@ import type { Session, SessionParticipant, ParticipantToken, ExperimentBatch } f
 interface SessionWithParticipantCount extends Session {
   participant_count: number
   participants: SessionParticipant[]
+  batch_id: string | null
 }
 
 interface BatchWithCount extends ExperimentBatch {
@@ -117,6 +119,10 @@ function AdminPage() {
   const [batchPointsData, setBatchPointsData] = useState<BatchPointRow[]>([])
   const [isLoadingPoints, setIsLoadingPoints] = useState(false)
   
+  // Tracks which batch IDs have already been auto-downloaded so we don't repeat
+  const autoDownloadedBatches = useRef<Set<string>>(new Set())
+  const [exportingBatchId, setExportingBatchId] = useState<string | null>(null)
+
   // Timer state - trigger re-render every second for active session timers
   const [, setTimerTick] = useState(0)
   
@@ -124,15 +130,72 @@ function AdminPage() {
   useEffect(() => {
     const hasActiveSessions = sessions.some(s => s.status === 'active')
     if (!hasActiveSessions) return
-    
+
     const interval = setInterval(() => {
       setTimerTick(t => t + 1)
     }, 1000)
-    
+
     return () => clearInterval(interval)
   }, [sessions])
 
+  // Auto-download batch data when all 3 rounds of a batch are completed.
+  // Uses batch_id returned on each round session by the admin sessions endpoint.
+  useEffect(() => {
+    if (!hasLoaded || batches.length === 0) return
+
+    for (const batch of batches) {
+      if (autoDownloadedBatches.current.has(batch.id)) continue
+
+      const batchRoundSessions = sessions.filter(
+        s => s.batch_id === batch.id && s.round_number != null
+      )
+      if (batchRoundSessions.length === 0) continue
+
+      const completedRounds = new Set(
+        batchRoundSessions
+          .filter(s => s.status === 'completed')
+          .map(s => s.round_number)
+      )
+      const allRoundsComplete = completedRounds.has(1) && completedRounds.has(2) && completedRounds.has(3)
+
+      if (allRoundsComplete) {
+        autoDownloadedBatches.current.add(batch.id)
+        // Fire-and-forget; on failure remove from set so next refresh retries
+        handleExportBatch(batch.id, batch.batch_code).catch(() => {
+          autoDownloadedBatches.current.delete(batch.id)
+        })
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, batches, hasLoaded])
+
   // No form for Create Batch (single button action)
+
+  // ============================================
+  // Batch Data Export
+  // ============================================
+
+  async function handleExportBatch(batchId: string, batchCode: string) {
+    setExportingBatchId(batchId)
+    try {
+      const data = await exportBatchData(batchId)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      link.download = `batch_${batchCode}_${ts}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Batch export failed:', err)
+      setError('Failed to export batch data.')
+    } finally {
+      setExportingBatchId(null)
+    }
+  }
 
   // ============================================
   // Data Fetching - MUST be before any conditional returns
@@ -213,10 +276,11 @@ function AdminPage() {
         fetchAdminBatches(),
       ])
 
-      const sessionsWithCounts = (sessionsData as Array<Session & { participants?: SessionParticipant[] }>).map(session => ({
+      const sessionsWithCounts = (sessionsData as Array<Session & { participants?: SessionParticipant[]; batch_id?: string | null }>).map(session => ({
         ...session,
         participant_count: session.participants?.length ?? 0,
         participants: session.participants ?? [],
+        batch_id: session.batch_id ?? null,
       })) as SessionWithParticipantCount[]
       setSessions(sessionsWithCounts)
 
@@ -1047,6 +1111,20 @@ function AdminPage() {
                                 >
                                   <Download className="w-3 h-3" />
                                   Points
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleExportBatch(batch.id, batch.batch_code)}
+                                  disabled={exportingBatchId === batch.id}
+                                  className="btn-secondary text-xs py-1 px-2 flex items-center gap-1"
+                                  title="Download all batch data as JSON"
+                                >
+                                  {exportingBatchId === batch.id ? (
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <FileText className="w-3 h-3" />
+                                  )}
+                                  Export
                                 </button>
                                 <BatchMatchRoundButtons
                                   batchId={batch.id}

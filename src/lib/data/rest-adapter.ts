@@ -545,6 +545,10 @@ export async function exportSessionData(sessionId: string): Promise<unknown> {
   return apiFetch(`/admin/export/${sessionId}`)
 }
 
+export async function exportBatchData(batchId: string): Promise<unknown> {
+  return apiFetch(`/admin/batches/${batchId}/export`)
+}
+
 // Re-export types from database schema
 export type { ParticipantToken } from '@/types/database.types'
 export type { ExperimentBatch, BatchParticipant } from '@/types/database.types'
