@@ -96,3 +96,6 @@ exports/
 # Backup files
 *.bak
 *.backup
+
+# Local experiment operations (not for repo)
+BATCH_CHECKLIST.md
