@@ -19,6 +19,9 @@ export interface Batch {
 export interface Participant {
   id: string;
   email: string;
+  pre_questionnaire_data?: Record<string, unknown> | null;
+  post_questionnaire_data?: Record<string, unknown> | null;
+  post_round_survey_data?: Record<string, unknown> | null;
 }
 
 export interface BatchParticipant {

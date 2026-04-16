@@ -12,7 +12,7 @@
 
 import { test, expect, type Browser } from '@playwright/test';
 import { ApiHelper } from '../fixtures/api-helpers';
-import { createMatchedPair, negotiateUrl, postSurveyUrl, debriefUrl } from '../fixtures/test-helpers';
+import { createMatchedPair, negotiateUrl, postRoundSurveyUrl, debriefUrl } from '../fixtures/test-helpers';
 
 test.beforeAll(async ({ request }) => {
   const api = new ApiHelper(request);
@@ -82,7 +82,7 @@ test('post-survey shows points when agreement was reached', async ({ page, reque
   await api.endSession(pair.sessionId, true, { I1: 0, I2: 1, I3: 0, I4: 0 });
 
   // Navigate directly to post-survey
-  await page.goto(postSurveyUrl(pair.sessionId, pair.p1.id));
+  await page.goto(postRoundSurveyUrl(pair.p1.id, { sessionId: pair.sessionId, round: 1, batchId: pair.batch.id }));
 
   // Should NOT say "no agreements made" in the points sidebar
   await expect(page.getByText(/no agreements made/i)).not.toBeVisible({ timeout: 10_000 });
