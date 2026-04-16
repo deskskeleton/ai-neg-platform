@@ -140,7 +140,7 @@ export function AssistantPanel({
     const userQuery = query.trim();
     setQuery('');
     setError(null);
-    
+
     // Add user message immediately
     const userMessage: Message = {
       id: `temp-user-${Date.now()}`,
@@ -149,16 +149,16 @@ export function AssistantPanel({
       timestamp: new Date(),
     };
     setMessages(prev => [...prev, userMessage]);
-    
+
     setIsLoading(true);
-    
+
     try {
       // Build conversation history for context
       const history = messages.map(m => ({
         role: m.role,
         content: m.content,
       }));
-      
+
       // Call assistant
       const response: AssistantQueryResponse = await queryAssistant(
         sessionId,
@@ -166,7 +166,7 @@ export function AssistantPanel({
         userQuery,
         history
       );
-      
+
       // Add assistant response
       const assistantMessage: Message = {
         id: `response-${Date.now()}`,
@@ -176,23 +176,30 @@ export function AssistantPanel({
         tokensUsed: response.tokensUsed,
       };
       setMessages(prev => [...prev, assistantMessage]);
-      
+
       // Update queries remaining
       setQueriesRemaining(response.queriesRemaining);
-      
+
     } catch (err) {
       console.error('Assistant query error:', err);
-      
+
+      const errMsg = err instanceof Error ? err.message : '';
+
       // Check if rate limited
-      if (err instanceof Error && err.message.includes('Rate limit')) {
+      if (errMsg.includes('Rate limit')) {
         setQueriesRemaining(0);
         setError(ui.limitReachedText);
+        setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+      } else if (errMsg.includes('assistant_warming') || errMsg.includes('503')) {
+        // Ollama cold-start. Not a real failure — retain the user's typed
+        // text so they can retry with one keypress, and show a soft message.
+        setError('The assistant is starting up — try again in a moment.');
+        setQuery(userQuery);
+        setMessages(prev => prev.filter(m => m.id !== userMessage.id));
       } else {
         setError('Failed to get response. Please try again.');
+        setMessages(prev => prev.filter(m => m.id !== userMessage.id));
       }
-      
-      // Remove the user message if failed
-      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();

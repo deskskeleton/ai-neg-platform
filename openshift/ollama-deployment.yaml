@@ -58,6 +58,10 @@ spec:
           env:
             - name: OLLAMA_NUM_PARALLEL
               value: "4"
+            # Model auto-pulled by the postStart hook below. Keep in sync with
+            # LLM_MODEL on the neg-platform deployment.
+            - name: LLM_MODEL
+              value: "llama3.1:8b"
           ports:
             - containerPort: 11434
           volumeMounts:
@@ -71,6 +75,25 @@ spec:
               memory: "4Gi"
               cpu: "4"
               nvidia.com/gpu: 1
+          # postStart: self-heal the model cache. If the PVC is empty (fresh
+          # pod, new PV, or cache eviction), pull the configured model. If the
+          # model is already present, `ollama pull` is a cheap no-op. We wait
+          # briefly for the daemon's HTTP API to accept connections first.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    for i in $(seq 1 30); do
+                      if wget -q -O- http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+                        ollama pull "${LLM_MODEL:-llama3.1:8b}" && exit 0
+                      fi
+                      sleep 2
+                    done
+                    echo "ollama postStart: daemon did not come up in 60s" >&2
+                    exit 0
           readinessProbe:
             httpGet:
               path: /api/tags

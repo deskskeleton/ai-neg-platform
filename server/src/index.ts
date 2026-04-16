@@ -59,9 +59,40 @@ app.get('/api/time', (_req, res) => {
   res.json({ serverTime: new Date().toISOString() })
 })
 
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+// Health check.
+// Default (shallow) just reports the app is up — used by Kubernetes readiness/liveness.
+// With ?deep=1, also probes Ollama so the preflight smoke script can tell at a
+// glance whether the AI assistant will actually work end-to-end.
+app.get('/api/health', async (req, res) => {
+  const base = { status: 'ok', timestamp: new Date().toISOString() }
+  if (req.query.deep !== '1' && req.query.deep !== 'true') {
+    res.json(base)
+    return
+  }
+
+  const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434'
+  const model = process.env.LLM_MODEL || 'llama3.1:8b'
+  let ollama: { status: 'ready' | 'unreachable' | 'timeout' | 'error'; model: string; modelsAvailable: number; message?: string }
+  try {
+    const r = await fetch(`${ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(2_000) })
+    if (r.ok) {
+      const data = await r.json() as { models?: Array<{ name?: string }> }
+      const models = Array.isArray(data.models) ? data.models : []
+      ollama = { status: 'ready', model, modelsAvailable: models.length }
+    } else {
+      ollama = { status: 'error', model, modelsAvailable: 0, message: `HTTP ${r.status}` }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    ollama = {
+      status: /abort|timeout/i.test(msg) ? 'timeout' : 'unreachable',
+      model,
+      modelsAvailable: 0,
+      message: msg,
+    }
+  }
+
+  res.json({ ...base, ollama })
 })
 
 // Serve built React frontend as static files

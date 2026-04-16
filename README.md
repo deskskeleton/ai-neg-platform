@@ -161,7 +161,7 @@ ai-neg-platform/
 | Path | Access | Description |
 |------|--------|-------------|
 | `/` | Public | Participant join page |
-| `/admin` | Password | Researcher dashboard |
+| `/admin_umdad` | Password | Researcher dashboard (path overridable via `VITE_ADMIN_ROUTE`) |
 | `/join/:code` | Public | Join with session or batch code |
 | `/p/:token` | Public | Pre-generated participant URL |
 | `/pre-survey/:participantId` | Participant | Pre-negotiation questionnaire |
@@ -214,7 +214,8 @@ See `openshift/DEPLOY.md` for step-by-step instructions to deploy on the univers
 
 **Production notes:**
 - `VITE_ADMIN_PASSWORD` is baked into the frontend bundle at build time. The Dockerfile ships a default value for convenience — this is a client-side password for the admin dashboard of a short-lived lab tool, not a credential for any external service. Override it for your own deployment: `docker build --build-arg VITE_ADMIN_PASSWORD=yourpassword .`
-- The server also requires `ADMIN_SECRET` for the server-side admin route guard
+- `VITE_ADMIN_ROUTE` (default `/admin_umdad`) is the obscured path the admin dashboard is served at. Override at build time if you want a different path: `docker build --build-arg VITE_ADMIN_ROUTE=/my_secret_admin .`
+- The server runs in **network-trust** mode: `/api/admin/*` is not gated by a server-side secret. Access control comes from the DSRI route being reachable only from the UM network, the obscured client path, and the client-side password. (The `ADMIN_SECRET` env var is still honored by the middleware if set, but the manifests intentionally do not set it — adding it again will break the admin page unless a matching Bearer flow is also wired into `apiFetch`.)
 - The HAProxy route timeout is set to 4500 s (75 min) to cover hour-long WebSocket sessions
 - The image is built on-cluster in the `sbe-dad-aineg` namespace — no external registry required (see `DEPLOY.md`)
 

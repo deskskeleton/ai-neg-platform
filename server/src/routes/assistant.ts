@@ -86,19 +86,56 @@ assistantRouter.post('/query', async (req, res) => {
 
     const startTime = Date.now()
 
-    const llmRes = await fetch(`${ollamaUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: false,
-        options: { num_predict: 300, temperature: 0.7 },
-      }),
-    })
+    // Call Ollama with a bounded timeout. If the pod is cold or the model
+    // is still being pulled, the first attempt may fail with a connection
+    // error — retry once after a short delay before surfacing "warming" to
+    // the client, which turns most cold-start windows invisible.
+    async function callOllama(): Promise<Response> {
+      return fetch(`${ollamaUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: false,
+          options: { num_predict: 300, temperature: 0.7 },
+        }),
+        signal: AbortSignal.timeout(60_000),
+      })
+    }
+
+    let llmRes: Response
+    try {
+      llmRes = await callOllama()
+    } catch (firstErr) {
+      // Network/abort error (Ollama unreachable or pod still starting).
+      // Distinguish this from a valid HTTP error from Ollama itself.
+      await new Promise(r => setTimeout(r, 3_000))
+      try {
+        llmRes = await callOllama()
+      } catch (secondErr) {
+        const detail = secondErr instanceof Error ? secondErr.message : String(secondErr)
+        console.warn('Assistant warming (Ollama unreachable after retry):', detail, 'first:', firstErr)
+        res.status(503).json({
+          error: 'assistant_warming',
+          message: 'The assistant is starting up — try again in a moment.',
+        })
+        return
+      }
+    }
 
     if (!llmRes.ok) {
       const text = await llmRes.text()
+      // "llama runner process has terminated" also looks like a warming state
+      // from the user's perspective — the model loader is recovering. Classify
+      // it the same way so the UI shows a soft message and retains input.
+      if (llmRes.status >= 500 && /llama runner|loading model|model.*loading/i.test(text)) {
+        res.status(503).json({
+          error: 'assistant_warming',
+          message: 'The assistant is starting up — try again in a moment.',
+        })
+        return
+      }
       res.status(502).json({ error: `LLM error ${llmRes.status}: ${text}` })
       return
     }

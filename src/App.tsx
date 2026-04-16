@@ -17,12 +17,12 @@ import RoundReadyPage from '@/pages/RoundReadyPage'
 
 /**
  * Main App Component
- * 
+ *
  * Defines the routing structure for the negotiation experiment platform.
- * 
+ *
  * Routes:
  * - /                           : Redirects to /join (participant entry)
- * - /admin                      : Admin dashboard (password protected)
+ * - <VITE_ADMIN_ROUTE>          : Admin dashboard (password protected; default /admin_umdad)
  * - /join                       : Manual session code entry
  * - /join/:code                 : Direct join with session code in URL
  * - /p/:token                   : Pre-generated participant URL (lab mode)
@@ -32,6 +32,12 @@ import RoundReadyPage from '@/pages/RoundReadyPage'
  * - /post-survey/:participantId : Post-negotiation questionnaire
  * - /debrief                    : Study debrief and information page
  */
+
+// Admin dashboard is served at an obscured path so curious participants
+// visiting `/admin` don't discover it. Overridable at build time via
+// --build-arg VITE_ADMIN_ROUTE=/your_path.
+const ADMIN_ROUTE = (import.meta.env.VITE_ADMIN_ROUTE as string | undefined) || '/admin_umdad'
+
 function App() {
   return (
     <ErrorBoundary title="Application Error" showHomeButton>
@@ -39,9 +45,10 @@ function App() {
         <Routes>
           {/* Root redirects to join page for participants */}
           <Route path="/" element={<JoinSessionPage />} />
-          
-          {/* Admin Route - Password protected dashboard */}
-          <Route path="/admin" element={<AdminPage />} />
+
+          {/* Admin Route — obscured path + client-side password gate.
+              Server-side /api/admin/* runs in network-trust mode. */}
+          <Route path={ADMIN_ROUTE} element={<AdminPage />} />
           
           {/* Join Session Routes - Entry point for participants */}
           <Route path="/join" element={<JoinSessionPage />} />

@@ -55,12 +55,9 @@ spec:
               value: "http://ollama:11434"
             - name: LLM_MODEL
               value: "llama3.1:8b"
-            - name: ADMIN_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: neg-platform-env
-                  key: ADMIN_SECRET
-                  optional: true
+            # ADMIN_SECRET is intentionally NOT set — the admin panel runs in
+            # network-trust mode (lab-only UM-network access + obscured client
+            # route + client-side password gate). See server/src/middleware/auth.ts.
           resources:
             requests:
               memory: "256Mi"

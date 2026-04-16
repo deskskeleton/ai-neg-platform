@@ -23,7 +23,7 @@ test('admin panel shows batches after page reload', async ({ page, request }) =>
   const batch = await api.createBatch(12);
 
   // Open admin page (no ADMIN_SECRET in test env, so no auth needed)
-  await page.goto('/admin');
+  await page.goto(process.env.VITE_ADMIN_ROUTE ?? '/admin_umdad');
 
   // May show an auth prompt depending on env — in test env ADMIN_SECRET is empty
   // so any value (or blank) should pass; try empty submit if a form is visible
@@ -56,7 +56,7 @@ test('participant count updates after joins', async ({ page, request }) => {
   await api.joinBatch(batch.id, p1.id);
   await api.joinBatch(batch.id, p2.id);
 
-  await page.goto('/admin');
+  await page.goto(process.env.VITE_ADMIN_ROUTE ?? '/admin_umdad');
   const secretInput = page.locator('input[type="password"]');
   if (await secretInput.isVisible({ timeout: 2000 }).catch(() => false)) {
     await secretInput.fill(process.env.VITE_ADMIN_PASSWORD ?? 'umdad2026');

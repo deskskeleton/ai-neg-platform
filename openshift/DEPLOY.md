@@ -25,14 +25,32 @@ Password-only login is not supported; always use the token from the web UI.
 
 ### 2. Build the app image on-cluster
 
-Run from the `ai-neg-platform` repository root:
+**One-time setup: mirror the `node:20-alpine` base image.** Docker Hub rate-limits
+unauthenticated pulls (100/6h per IP, shared across the DSRI egress), which has
+repeatedly blocked builds. Import the base image into the internal registry once;
+after that, all builds pull from inside the cluster:
+
+```bash
+oc import-image node:20-alpine \
+  --from=docker.io/library/node:20-alpine \
+  --confirm \
+  --scheduled=true
+```
+
+Then run the build, pointing `NODE_IMAGE` at the mirror:
 
 ```bash
 oc new-build --name neg-platform --binary
-oc start-build neg-platform --from-dir=. --follow --wait
+oc start-build neg-platform --from-dir=. --follow --wait \
+  --build-arg NODE_IMAGE=image-registry.openshift-image-registry.svc:5000/$(oc project -q)/node:20-alpine
 ```
 
 This creates an ImageStream `neg-platform` in your namespace. Note your namespace name — you'll need it next.
+
+> If you skip the mirror, the Dockerfile falls back to `node:20-alpine` from
+> Docker Hub and the build may fail with `toomanyrequests` during busy periods.
+> The Dockerfile has been flattened to one builder stage so at most a single
+> base-image pull happens per build.
 
 ### 3. Patch the image reference in the deployment
 
@@ -47,6 +65,15 @@ oc create secret generic neg-platform-env \
 ```
 
 Create this **before** deploying PostgreSQL so the pod can read `POSTGRES_PASSWORD`.
+
+> **Note on admin auth.** The server runs in *network-trust* mode: there is no
+> `ADMIN_SECRET` and the `/api/admin/*` endpoints are reachable to anyone who
+> can hit the app. Access control comes from (a) the DSRI route only being
+> sensible to reach from the UM network, (b) the obscured client-side admin
+> route (`/admin_umdad` by default, overridable via `VITE_ADMIN_ROUTE` build
+> arg), and (c) the `VITE_ADMIN_PASSWORD` gate on the admin page. Do **not**
+> add `ADMIN_SECRET` back to this secret unless you also implement a matching
+> Bearer-token flow on the frontend.
 
 ### 5. Deploy PostgreSQL
 
@@ -68,11 +95,14 @@ oc exec $POD -- psql -U neg -d negplatform -f /tmp/init.sql
 oc apply -f openshift/ollama-deployment.yaml
 ```
 
-Wait for the pod to be ready, then pull the model (this takes a few minutes):
+The Ollama pod's `postStart` hook auto-pulls the model named in `LLM_MODEL`
+(default `llama3.1:8b`) on first start, so no manual `ollama pull` is
+normally required. If you need to pull manually (e.g. to test a different
+model), run:
 
 ```bash
 POD=$(oc get pods -l app=ollama -o jsonpath='{.items[0].metadata.name}')
-oc exec $POD -- ollama pull llama3.2:3b
+oc exec $POD -- ollama pull llama3.1:8b
 ```
 
 ### 7. Deploy the app server

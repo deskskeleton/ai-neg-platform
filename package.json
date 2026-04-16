@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "preflight": "node tools/preflight.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

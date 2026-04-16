@@ -18,9 +18,13 @@ adminRouter.use(requireAdmin)
 adminRouter.get('/sessions', async (req, res) => {
   try {
     const rows = await query(
+      // Postgres has no max() aggregate for uuid in older versions, and we only
+      // need any batch_id associated with the session's participants (a participant
+      // belongs to at most one batch at a time). Use array_agg + DISTINCT + first
+      // element, which works on every supported Postgres version.
       `SELECT s.*,
               COALESCE(json_agg(sp.* ORDER BY sp.joined_at) FILTER (WHERE sp.id IS NOT NULL), '[]') AS participants,
-              max(bp.batch_id) AS batch_id
+              (array_agg(DISTINCT bp.batch_id) FILTER (WHERE bp.batch_id IS NOT NULL))[1] AS batch_id
        FROM sessions s
        LEFT JOIN session_participants sp ON sp.session_id = s.id
        LEFT JOIN batch_participants bp ON bp.participant_id = sp.participant_id

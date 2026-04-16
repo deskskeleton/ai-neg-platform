@@ -38,6 +38,9 @@ export const directUrlAssistantClient: IAssistantClient = {
 
     if (!res.ok) {
       const text = await res.text()
+      // Preserve the raw body in the error message so callers can detect
+      // the server's "assistant_warming" soft-error (503) and show a
+      // friendly message instead of the generic "failed" banner.
       throw new Error(`Assistant API error ${res.status}: ${text}`)
     }
 
