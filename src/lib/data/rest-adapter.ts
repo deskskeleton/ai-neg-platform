@@ -109,6 +109,10 @@ export async function generatePaymentCode(amountCents: number): Promise<string> 
   return data.code
 }
 
+export async function verifyPaymentCode(code: string): Promise<{ valid: boolean; amountCents?: number; amountEuro?: string }> {
+  return apiFetch(`/payment-code/verify?code=${encodeURIComponent(code)}`)
+}
+
 // ---------------------------------------------------------------------------
 // Session operations
 // ---------------------------------------------------------------------------

@@ -166,7 +166,7 @@ adminRouter.get('/batches/:id/export', async (req, res) => {
       sessionIds.length > 0
         ? query(
             `SELECT sp.session_id, sp.participant_id, sp.role, sp.joined_at,
-                    sp.pre_survey_completed_at, sp.post_survey_completed_at,
+                    sp.pre_survey_completed_at,
                     sp.briefing_ready_at, sp.treatment_condition
              FROM session_participants sp WHERE sp.session_id = ANY($1)`,
             [sessionIds]

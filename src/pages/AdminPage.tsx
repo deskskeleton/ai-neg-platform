@@ -1397,6 +1397,8 @@ function AdminPage() {
             </>
           )}
         </div>
+        {/* Payment Code Verification */}
+        <PaymentCodeVerifier />
       </main>
     </div>
   )
@@ -1626,6 +1628,76 @@ function BatchPointsTable({ rows }: { rows: BatchPointRow[] }) {
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+/** Inline payment code verification form for the admin dashboard. */
+function PaymentCodeVerifier() {
+  const [code, setCode] = useState('')
+  const [result, setResult] = useState<{ valid: boolean; amountCents?: number; amountEuro?: string } | null>(null)
+  const [verifying, setVerifying] = useState(false)
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault()
+    const trimmed = code.trim()
+    if (!trimmed) return
+    setVerifying(true)
+    setVerifyError(null)
+    setResult(null)
+    try {
+      const { verifyPaymentCode } = await import('@/lib/data')
+      const res = await verifyPaymentCode(trimmed)
+      setResult(res)
+    } catch (err) {
+      setVerifyError(err instanceof Error ? err.message : 'Verification failed')
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  return (
+    <div className="mt-8 card">
+      <h2 className="text-lg font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+        <FileText className="w-5 h-5 text-amber-600" />
+        Verify Payment Code
+      </h2>
+      <form onSubmit={handleVerify} className="flex items-end gap-3">
+        <div className="flex-1 max-w-xs">
+          <label htmlFor="verify-code" className="block text-sm font-medium text-neutral-700 mb-1">
+            Completion code
+          </label>
+          <input
+            id="verify-code"
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="XXXXX-XXXXX"
+            className="w-full px-3 py-2 border border-neutral-300 rounded-lg font-mono tracking-wider text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            maxLength={11}
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={verifying || code.trim().length < 10}
+          className="btn-primary py-2 px-4"
+        >
+          {verifying ? 'Checking...' : 'Verify'}
+        </button>
+      </form>
+      {result && (
+        <div className={`mt-3 p-3 rounded-lg text-sm ${result.valid ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-800'}`}>
+          {result.valid ? (
+            <span>Valid &mdash; Payment amount: <strong>{result.amountEuro}</strong> ({result.amountCents} cents)</span>
+          ) : (
+            <span>Invalid code. Check for typos and try again.</span>
+          )}
+        </div>
+      )}
+      {verifyError && (
+        <p className="mt-2 text-sm text-red-600">{verifyError}</p>
+      )}
     </div>
   )
 }
