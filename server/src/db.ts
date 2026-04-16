@@ -12,6 +12,9 @@ const { Pool } = pg
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 20,                // max pool size (default 10 is too low under 18-participant load)
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
 })
 
 // Log connection errors so they don't crash the process silently

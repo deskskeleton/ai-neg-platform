@@ -19,16 +19,11 @@ adminRouter.get('/sessions', async (req, res) => {
   try {
     const rows = await query(
       `SELECT s.*,
-              COALESCE(json_agg(sp.*) FILTER (WHERE sp.id IS NOT NULL), '[]') AS participants,
-              (
-                SELECT bp.batch_id
-                FROM session_participants sp2
-                JOIN batch_participants bp ON bp.participant_id = sp2.participant_id
-                WHERE sp2.session_id = s.id
-                LIMIT 1
-              ) AS batch_id
+              COALESCE(json_agg(sp.* ORDER BY sp.joined_at) FILTER (WHERE sp.id IS NOT NULL), '[]') AS participants,
+              max(bp.batch_id) AS batch_id
        FROM sessions s
        LEFT JOIN session_participants sp ON sp.session_id = s.id
+       LEFT JOIN batch_participants bp ON bp.participant_id = sp.participant_id
        GROUP BY s.id
        ORDER BY s.created_at DESC`
     )

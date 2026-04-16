@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { io, type Socket } from 'socket.io-client'
 import { 
   Plus, 
   Users, 
@@ -89,8 +90,8 @@ const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'admin'
 function AdminPage() {
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // Check if already authenticated in this session
-    return sessionStorage.getItem('admin_auth') === 'true'
+    // localStorage persists across browser close/reopen and across tabs
+    return localStorage.getItem('admin_auth') === 'true'
   })
   const [passwordInput, setPasswordInput] = useState('')
   const [authError, setAuthError] = useState(false)
@@ -123,9 +124,83 @@ function AdminPage() {
   const autoDownloadedBatches = useRef<Set<string>>(new Set())
   const [exportingBatchId, setExportingBatchId] = useState<string | null>(null)
 
+  // Socket for real-time admin updates
+  const adminSocketRef = useRef<Socket | null>(null)
+  const refreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Tracks which session rooms the admin socket has already joined
+  const joinedSessionRooms = useRef<Set<string>>(new Set())
+
   // Timer state - trigger re-render every second for active session timers
   const [, setTimerTick] = useState(0)
-  
+
+  // ============================================
+  // Data Fetching
+  // Declared as useCallback so effects can list it as a stable dependency.
+  // Must be declared before any useEffect that references it, and before
+  // any conditional early return, per React's rules of hooks.
+  // ============================================
+
+  const fetchSessions = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true)
+    setError(null)
+
+    try {
+      // Fetch sessions and batches independently so one failure doesn't blank both
+      const [sessionsResult, batchesResult] = await Promise.allSettled([
+        fetchAdminSessions(),
+        fetchAdminBatches(),
+      ])
+
+      if (sessionsResult.status === 'fulfilled') {
+        const sessionsWithCounts = (sessionsResult.value as Array<Session & { participants?: SessionParticipant[]; batch_id?: string | null }>).map(session => ({
+          ...session,
+          participant_count: session.participants?.length ?? 0,
+          participants: session.participants ?? [],
+          batch_id: session.batch_id ?? null,
+        })) as SessionWithParticipantCount[]
+        setSessions(sessionsWithCounts)
+
+        // Join socket rooms for any new session we haven't subscribed to yet
+        const socket = adminSocketRef.current
+        if (socket) {
+          for (const s of sessionsWithCounts) {
+            if (!joinedSessionRooms.current.has(s.id)) {
+              socket.emit('join-session', s.id)
+              joinedSessionRooms.current.add(s.id)
+            }
+          }
+        }
+      } else {
+        console.error('Failed to fetch sessions:', sessionsResult.reason)
+        setError('Failed to load sessions — retrying automatically.')
+      }
+
+      if (batchesResult.status === 'fulfilled') {
+        const batchesData = batchesResult.value as Array<ExperimentBatch & { participant_count?: number }>
+        const batchIds = batchesData.map(b => b.id)
+        setBatches(batchesData.map(b => ({
+          ...b,
+          participant_count: b.participant_count ?? 0,
+        })))
+        if (batchIds.length > 0) {
+          const queueCounts = await getBatchRoundQueueCounts(batchIds)
+          setBatchQueueCounts(queueCounts)
+        } else {
+          setBatchQueueCounts({})
+        }
+      } else {
+        console.error('Failed to fetch batches:', batchesResult.reason)
+      }
+
+      setHasLoaded(true)
+    } catch (err) {
+      console.error('Failed to fetch admin data:', err)
+      setError('Failed to load data — retrying automatically.')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
   // Update timer display every second
   useEffect(() => {
     const hasActiveSessions = sessions.some(s => s.status === 'active')
@@ -201,13 +276,43 @@ function AdminPage() {
   // Data Fetching - MUST be before any conditional returns
   // ============================================
 
-  // Fetch all sessions when authenticated, and auto-refresh every 15 seconds
+  // Fetch all sessions when authenticated, and auto-refresh every 5 seconds
   useEffect(() => {
     if (!isAuthenticated) return
     fetchSessions(true)
-    const interval = setInterval(() => fetchSessions(false), 15_000)
+    const interval = setInterval(() => fetchSessions(false), 5_000)
     return () => clearInterval(interval)
-  }, [isAuthenticated])
+  }, [isAuthenticated, fetchSessions])
+
+  // Socket connection for real-time admin updates.
+  // Subscribes to session rooms and triggers an immediate (debounced) refresh
+  // when any session or participant event fires — so the admin sees changes
+  // within ~500ms instead of waiting for the 5s poll.
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
+    const socket = io(API_BASE || window.location.origin, {
+      transports: ['websocket', 'polling'],
+    })
+    adminSocketRef.current = socket
+
+    function scheduleRefresh() {
+      if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current)
+      refreshDebounceRef.current = setTimeout(() => fetchSessions(false), 400)
+    }
+
+    socket.on('sessions_update', scheduleRefresh)
+    socket.on('session_participants_insert', scheduleRefresh)
+    socket.on('session_participants_update', scheduleRefresh)
+
+    return () => {
+      socket.disconnect()
+      adminSocketRef.current = null
+      joinedSessionRooms.current.clear()
+      if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current)
+    }
+  }, [isAuthenticated, fetchSessions])
 
   // ============================================
   // Authentication
@@ -217,7 +322,7 @@ function AdminPage() {
     e.preventDefault()
     if (passwordInput === ADMIN_PASSWORD) {
       setIsAuthenticated(true)
-      sessionStorage.setItem('admin_auth', 'true')
+      localStorage.setItem('admin_auth', 'true')
       setAuthError(false)
     } else {
       setAuthError(true)
@@ -263,45 +368,6 @@ function AdminPage() {
         </div>
       </div>
     )
-  }
-
-  async function fetchSessions(showLoading = true) {
-    if (showLoading) setIsLoading(true)
-    setError(null)
-
-    try {
-      // Fetch sessions and batches via data layer
-      const [sessionsData, batchesData] = await Promise.all([
-        fetchAdminSessions(),
-        fetchAdminBatches(),
-      ])
-
-      const sessionsWithCounts = (sessionsData as Array<Session & { participants?: SessionParticipant[]; batch_id?: string | null }>).map(session => ({
-        ...session,
-        participant_count: session.participants?.length ?? 0,
-        participants: session.participants ?? [],
-        batch_id: session.batch_id ?? null,
-      })) as SessionWithParticipantCount[]
-      setSessions(sessionsWithCounts)
-
-      const batchIds = (batchesData as Array<ExperimentBatch & { participant_count?: number }>).map(b => b.id)
-      setBatches((batchesData as Array<ExperimentBatch & { participant_count?: number }>).map(b => ({
-        ...b,
-        participant_count: b.participant_count ?? 0,
-      })))
-      if (batchIds.length > 0) {
-        const queueCounts = await getBatchRoundQueueCounts(batchIds)
-        setBatchQueueCounts(queueCounts)
-      } else {
-        setBatchQueueCounts({})
-      }
-      setHasLoaded(true)
-    } catch (err) {
-      console.error('Failed to fetch sessions:', err)
-      setError('Failed to load sessions. Check your backend configuration.')
-    } finally {
-      setIsLoading(false)
-    }
   }
 
   // ============================================
