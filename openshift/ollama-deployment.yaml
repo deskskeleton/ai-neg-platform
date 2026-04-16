@@ -58,6 +58,14 @@ spec:
           env:
             - name: OLLAMA_NUM_PARALLEL
               value: "4"
+            # Pin the context window. Without this, Ollama auto-sizes based on
+            # available VRAM — on an 80 GB H100 it picks 262144 tokens, which
+            # balloons the KV cache (≈38 GB) and compute graph (≈35 GB) until
+            # the 2.3 GB model weights no longer fit and cudaMalloc fails with
+            # "device busy or unavailable". 8192 is plenty for 2–3 sentence
+            # assistant replies in this experiment.
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: "8192"
             # Model auto-pulled by the postStart hook below. Keep in sync with
             # LLM_MODEL on the neg-platform deployment.
             - name: LLM_MODEL
