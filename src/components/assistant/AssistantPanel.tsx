@@ -202,7 +202,10 @@ export function AssistantPanel({
       }
     } finally {
       setIsLoading(false);
-      inputRef.current?.focus();
+      // Defer focus until after React re-renders the input as enabled
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
     }
   }, [query, isLoading, disabled, isUnlimited, queriesRemaining, messages, sessionId, participantId, ui.limitReachedText]);
   

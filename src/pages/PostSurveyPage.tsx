@@ -33,7 +33,6 @@ import {
   ProgressBar,
   QuestionSection,
   LikertScale,
-  SliderScale,
   RadioGroup,
   TextInput,
   NA_VALUE,
@@ -637,12 +636,11 @@ function PostSurveyPage() {
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
               <QuestionSection title="Mental Workload" sectionNumber={3} description="Please rate your experience during this round.">
                 {SURVEY_CONFIG.nasaTlxItems.map((item) => (
-                  <SliderScale
+                  <LikertScale
                     key={item.id}
                     question={item.text}
                     min={1}
                     max={7}
-                    step={1}
                     minLabel={item.minLabel}
                     maxLabel={item.maxLabel}
                     value={roundSurveyValues[item.id] as number}
