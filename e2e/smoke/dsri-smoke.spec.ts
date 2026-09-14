@@ -2,7 +2,7 @@
  * dsri-smoke.spec.ts
  *
  * Smoke tests against the live DSRI deployment.
- * Target: https://neg-platform.apps.dsri2.unimaas.nl
+ * Target: https://neg-platform.apps.dsri.unimaas.nl
  *
  * Run with:
  *   npx playwright test --config playwright.config.dsri.ts --ui

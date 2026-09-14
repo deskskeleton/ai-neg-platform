@@ -12,12 +12,12 @@
 
 Connect to the UM network (VPN if off-campus), then:
 
-1. Open the DSRI console: `https://console-openshift-console.apps.dsri2.unimaas.nl`
+1. Open the DSRI console: `https://console.dsri.unimaas.nl`
 2. Log in with your UM credentials.
 3. Click **Copy Login Command** (top-right) and paste it in your terminal:
 
 ```bash
-oc login https://api.dsri2.unimaas.nl:6443 --token=<your-token>
+oc login https://api.dsri.unimaas.nl:6443 --token=<your-token>
 oc project <your-namespace>
 ```
 
@@ -120,7 +120,7 @@ oc get pods
 oc get routes
 ```
 
-The app should be available at `https://neg-platform.apps.dsri2.unimaas.nl`.
+The app should be available at `https://neg-platform.apps.dsri.unimaas.nl`.
 
 ---
 

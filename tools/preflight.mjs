@@ -8,8 +8,8 @@
  * 2026-04-16 livetest short (admin SQL crash, cold Ollama, missing model).
  *
  * Usage:
- *   node tools/preflight.mjs https://neg-platform.apps.dsri2.unimaas.nl
- *   npm run preflight -- https://neg-platform.apps.dsri2.unimaas.nl
+ *   node tools/preflight.mjs https://neg-platform.apps.dsri.unimaas.nl
+ *   npm run preflight -- https://neg-platform.apps.dsri.unimaas.nl
  *
  * Exits 0 on all green, 1 if any check fails.
  */

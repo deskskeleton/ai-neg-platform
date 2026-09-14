@@ -102,7 +102,7 @@ metadata:
     haproxy.router.openshift.io/timeout: 4500s
 spec:
   # Change this to your actual DSRI hostname
-  host: neg-platform.apps.dsri2.unimaas.nl
+  host: neg-platform.apps.dsri.unimaas.nl
   to:
     kind: Service
     name: neg-platform

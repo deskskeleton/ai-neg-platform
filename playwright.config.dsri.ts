@@ -26,7 +26,7 @@ export default defineConfig({
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
     // Use PLAYWRIGHT_BASE_URL env var to override (e.g., http://localhost:13000 via oc port-forward)
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'https://neg-platform.apps.dsri2.unimaas.nl',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'https://neg-platform.apps.dsri.unimaas.nl',
     trace: 'retain-on-failure',
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
