@@ -41,6 +41,11 @@ Then run the build, pointing `NODE_IMAGE` at the mirror:
 
 ```bash
 oc new-build --name neg-platform --binary
+# The cluster admission policy (Kyverno) rejects any pod without CPU and
+# memory requests and limits, build pods included. Set them once on the
+# BuildConfig or start-build fails with CannotCreateBuildPod:
+oc patch bc neg-platform --type=merge \
+  -p '{"spec":{"resources":{"requests":{"cpu":"1","memory":"2Gi"},"limits":{"cpu":"2","memory":"4Gi"}}}}'
 oc start-build neg-platform --from-dir=. --follow --wait \
   --build-arg NODE_IMAGE=image-registry.openshift-image-registry.svc:5000/$(oc project -q)/node:20-alpine
 ```
