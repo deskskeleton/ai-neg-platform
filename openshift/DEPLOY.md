@@ -61,10 +61,16 @@ The image is already set to the `sbe-dad-aineg` namespace. No changes needed.
 ```bash
 oc create secret generic neg-platform-env \
   --from-literal=DATABASE_URL=postgresql://neg:YOUR_PASSWORD@neg-postgres:5432/negplatform \
-  --from-literal=POSTGRES_PASSWORD=YOUR_PASSWORD
+  --from-literal=POSTGRES_PASSWORD=YOUR_PASSWORD \
+  --from-literal=COMPLETION_CODE_SECRET=YOUR_HMAC_SECRET
 ```
 
 Create this **before** deploying PostgreSQL so the pod can read `POSTGRES_PASSWORD`.
+
+`COMPLETION_CODE_SECRET` signs the HMAC payment codes shown on the final
+earnings screen (`server/src/routes/payment-code.ts`). The app refuses to
+generate a code without it. Generate a new one with `openssl rand -hex 32`,
+or reuse the previous value so codes issued earlier keep verifying.
 
 > **Note on admin auth.** The server runs in *network-trust* mode: there is no
 > `ADMIN_SECRET` and the `/api/admin/*` endpoints are reachable to anyone who

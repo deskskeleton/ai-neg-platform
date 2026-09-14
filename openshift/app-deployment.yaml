@@ -11,7 +11,8 @@
 #   2. Image is pre-set to namespace sbe-dad-aineg — no patching needed.
 #   3. Create the secret: oc create secret generic neg-platform-env \
 #        --from-literal=DATABASE_URL=postgresql://neg:YOUR_PASSWORD@neg-postgres:5432/negplatform \
-#        --from-literal=POSTGRES_PASSWORD=YOUR_PASSWORD
+#        --from-literal=POSTGRES_PASSWORD=YOUR_PASSWORD \
+#        --from-literal=COMPLETION_CODE_SECRET=YOUR_HMAC_SECRET
 #   4. Apply: oc apply -f openshift/app-deployment.yaml
 # ============================================
 
@@ -51,6 +52,11 @@ spec:
                 secretKeyRef:
                   name: neg-platform-env
                   key: DATABASE_URL
+            - name: COMPLETION_CODE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: neg-platform-env
+                  key: COMPLETION_CODE_SECRET
             - name: OLLAMA_URL
               value: "http://ollama:11434"
             - name: LLM_MODEL
