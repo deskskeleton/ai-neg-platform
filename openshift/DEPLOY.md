@@ -116,6 +116,25 @@ POD=$(oc get pods -l app=ollama -o jsonpath='{.items[0].metadata.name}')
 oc exec $POD -- ollama pull llama3.1:8b
 ```
 
+### 6b. Attach the GPU once the booking is active
+
+The namespace GPU quota is 0 until a DSRI booking starts; DSRI raises it and
+emails you. The Ollama manifest deliberately does not request a GPU, so it
+deploys in any quota state. When the booking email arrives:
+
+```bash
+oc patch deployment/ollama --type=json -p '[
+  {"op":"add","path":"/spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu","value":1},
+  {"op":"add","path":"/spec/template/spec/tolerations","value":[{"key":"nvidia.com/gpu","operator":"Exists","effect":"NoSchedule"}]}
+]'
+oc rollout status deployment/ollama
+```
+
+Confirm with `npm run preflight -- https://neg-platform.apps.dsri.unimaas.nl`
+(the assistant check should go green in under a minute). Note that
+`oc apply -f openshift/ollama-deployment.yaml` removes the GPU request and any
+node placement RCS added, so re-run the patch after any re-apply.
+
 ### 7. Deploy the app server
 
 Ensure the `image:` line in `openshift/app-deployment.yaml` has `NAMESPACE` replaced with your project name, then:

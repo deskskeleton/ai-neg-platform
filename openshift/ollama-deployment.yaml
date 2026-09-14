@@ -1,15 +1,12 @@
 # ============================================
 # Ollama LLM Deployment for DSRI
 # ============================================
-# Default: GPU enabled (required for usable response times).
-# CPU-only inference takes ~4 min per response and hits Ollama's
-# 5-minute timeout, so GPU is the only viable mode for experiments.
-#
-# GPU node must be booked in advance via DSRI portal.
-#
-# To revert to CPU (e.g., to keep the pod alive between bookings):
-#   1. Comment out nvidia.com/gpu: 1 and the tolerations block
-#   2. oc apply -f openshift/ollama-deployment.yaml
+# This manifest deploys in CPU mode so it applies in any GPU-quota state.
+# CPU-only inference takes ~4 min per response and hits Ollama's 5-minute
+# timeout, so a GPU is required for sessions. The DSRI GPU quota is 0 until
+# a booking is active; when the booking email arrives, attach the GPU with
+# the oc patch in DEPLOY.md step 6b. Re-applying this file removes the GPU
+# again (and any node placement RCS added), so re-run the patch afterwards.
 #
 # On first deploy, pull the model:
 #   POD=$(oc get pods -l app=ollama -o jsonpath='{.items[0].metadata.name}')
@@ -82,7 +79,10 @@ spec:
             limits:
               memory: "4Gi"
               cpu: "4"
-              nvidia.com/gpu: 1
+              # nvidia.com/gpu is NOT set here. The namespace GPU quota is 0 until
+              # a DSRI booking is active, and a pod that requests a GPU with
+              # quota 0 is never created. Add the GPU with the oc patch in
+              # openshift/DEPLOY.md step 6b once the booking email arrives.
           # postStart: self-heal the model cache. If the PVC is empty (fresh
           # pod, new PV, or cache eviction), pull the configured model. If the
           # model is already present, `ollama pull` is a cheap no-op. We use
@@ -116,10 +116,6 @@ spec:
               port: 11434
             initialDelaySeconds: 30
             periodSeconds: 60
-      tolerations:
-        - key: nvidia.com/gpu
-          operator: Exists
-          effect: NoSchedule
       volumes:
         - name: models
           persistentVolumeClaim:
