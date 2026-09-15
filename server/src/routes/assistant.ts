@@ -99,7 +99,12 @@ assistantRouter.post('/query', async (req, res) => {
           model,
           messages,
           stream: false,
-          options: { num_predict: 300, temperature: 0.7 },
+          // num_thread must match the Ollama container's CPU limit (4 in
+          // openshift/ollama-deployment.yaml). Left unset, llama-server spawns
+          // one thread per host core (128 on the DSRI node) inside a 4-CPU
+          // cgroup and throttles itself: 24 concurrent requests measured
+          // 34 s p50 unpinned vs 5.4 s pinned on 2026-09-15.
+          options: { num_predict: 300, temperature: 0.7, num_thread: 4 },
         }),
         signal: AbortSignal.timeout(60_000),
       })
