@@ -72,6 +72,9 @@ export function AssistantPanel({
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // True once a request has been in flight for 15 s; swaps the spinner text
+  // so a slow reply is visibly slow rather than a silent spinner.
+  const [isSlow, setIsSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [queriesRemaining, setQueriesRemaining] = useState(isUnlimited ? 999 : maxQueries);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -151,6 +154,8 @@ export function AssistantPanel({
     setMessages(prev => [...prev, userMessage]);
 
     setIsLoading(true);
+    setIsSlow(false);
+    const slowTimer = setTimeout(() => setIsSlow(true), 15_000);
 
     try {
       // Build conversation history for context
@@ -204,7 +209,9 @@ export function AssistantPanel({
         setMessages(prev => prev.filter(m => m.id !== userMessage.id));
       }
     } finally {
+      clearTimeout(slowTimer);
       setIsLoading(false);
+      setIsSlow(false);
       // Defer focus until after React re-renders the input as enabled
       setTimeout(() => {
         inputRef.current?.focus();
@@ -283,7 +290,7 @@ export function AssistantPanel({
         {isLoading && (
           <div className="flex items-center gap-2 text-slate-500 pl-2">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Thinking...</span>
+            <span className="text-sm">{isSlow ? 'Still working' : 'Thinking...'}</span>
           </div>
         )}
         
