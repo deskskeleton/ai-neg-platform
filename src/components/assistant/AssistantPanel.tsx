@@ -197,7 +197,10 @@ export function AssistantPanel({
         setQuery(userQuery);
         setMessages(prev => prev.filter(m => m.id !== userMessage.id));
       } else {
-        setError('Failed to get response. Please try again.');
+        // Any other failure: keep the participant's question in the input so
+        // a retry is one keypress, and keep the wording short and plain.
+        setError('No reply. Try again.');
+        setQuery(userQuery);
         setMessages(prev => prev.filter(m => m.id !== userMessage.id));
       }
     } finally {
