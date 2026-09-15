@@ -33,8 +33,12 @@ batchesRouter.post('/', async (req, res) => {
 batchesRouter.get('/by-code/:code', async (req, res) => {
   try {
     if (!req.params.code?.trim()) { res.json(null); return }
+    // participant_count lets the join page refuse a full group before it
+    // creates a participant record for someone who cannot join.
     const row = await queryOne(
-      `SELECT * FROM experiment_batches WHERE batch_code = $1`,
+      `SELECT b.*,
+              (SELECT count(*)::int FROM batch_participants bp WHERE bp.batch_id = b.id) AS participant_count
+       FROM experiment_batches b WHERE b.batch_code = $1`,
       [req.params.code.toUpperCase()]
     )
     res.json(row)

@@ -257,6 +257,10 @@ function JoinSessionPage() {
     }
   }
 
+  // Shown when a group of six already has six members. Retrying cannot help;
+  // the experimenter hands out another group's code (admin: New Batch → 6).
+  const GROUP_FULL_MESSAGE = 'This group is full. Please tell the experimenter.'
+
   async function validateSession(code: string) {
     setPageState('loading')
     setError(null)
@@ -264,6 +268,14 @@ function JoinSessionPage() {
     try {
       const batch = await getBatchByCode(code)
       if (batch && batch.status === 'open') {
+        const count = (batch as { participant_count?: number }).participant_count ?? 0
+        if (count >= batch.max_participants) {
+          // Refuse here, before any participant record exists. Retrying
+          // cannot help; the experimenter has to hand out another code.
+          setError(GROUP_FULL_MESSAGE)
+          setPageState('code_entry')
+          return
+        }
         setBatchId(batch.id)
         setSession(null)
         setSessionCode(code)
@@ -271,7 +283,7 @@ function JoinSessionPage() {
         return
       }
       if (batch) {
-        setError('This batch is not open or is full.')
+        setError('This code is no longer open. Please tell the experimenter.')
         setPageState('code_entry')
         return
       }
@@ -337,6 +349,15 @@ function JoinSessionPage() {
     setIsSubmitting(true)
     setError(null)
     try {
+      // Re-check the seat count right before creating the participant: the
+      // group may have filled while this person read the consent text.
+      const latest = await getBatchByCode(sessionCode)
+      const count = (latest as { participant_count?: number } | null)?.participant_count ?? 0
+      if (!latest || latest.status !== 'open' || count >= latest.max_participants) {
+        setError(GROUP_FULL_MESSAGE)
+        setPageState('code_entry')
+        return
+      }
       const anonId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       const newParticipant = await createParticipant(`${anonId}@lab.local`)
       await joinBatch(batchId, newParticipant.id)
@@ -344,8 +365,9 @@ function JoinSessionPage() {
       navigate(`/pre-survey/${newParticipant.id}?batch=${batchId}&code=${sessionCode}`)
     } catch (err) {
       console.error('Join batch error:', err)
-      if (err instanceof ApiError) setError(err.message)
-      else setError('Failed to join batch. Please try again.')
+      if (err instanceof ApiError && /full|not open/i.test(err.message)) setError(GROUP_FULL_MESSAGE)
+      else if (err instanceof ApiError) setError(err.message)
+      else setError('Could not join. Please tell the experimenter.')
     } finally {
       setIsSubmitting(false)
     }
