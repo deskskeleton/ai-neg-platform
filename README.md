@@ -206,6 +206,8 @@ Set per-session in the admin dashboard when creating a session. `0` = unlimited.
 
 ## Deployment (DSRI)
 
+**Running a session:** `docs/RUNBOOK.md` (day-before checks, start-of-day warm-up, during-session actions, export and backup). **What the assistant is:** `server/src/config/assistant.ts` (frozen configuration) and `docs/ASSISTANT_PROFILE_HISTORY.md` (why). **Rebuilding a session from an export:** `node tools/reconstruct.mjs <export.json> --print`.
+
 See `openshift/DEPLOY.md` for step-by-step instructions to deploy on the university's DSRI OpenShift cluster. The deployment uses three pods:
 
 1. **App server** — serves the React frontend and REST API
