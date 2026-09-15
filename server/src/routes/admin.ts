@@ -137,7 +137,7 @@ adminRouter.get('/batches/:id/export', async (req, res) => {
   try {
     const batchId = req.params.id
 
-    const [batchRows, participantRows, sessionRows, scheduleRows] = await Promise.all([
+    const [batchRows, participantRows, scheduleRows, sessionRows] = await Promise.all([
       query('SELECT * FROM experiment_batches WHERE id = $1', [batchId]),
       query(
         `SELECT p.id, p.email, p.created_at,
