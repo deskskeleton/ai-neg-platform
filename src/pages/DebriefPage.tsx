@@ -74,12 +74,15 @@ const DEBRIEF_CONFIG = {
   
   // Payment information (for BEELab)
   payment: {
+    // €10 show-up fee plus €0.05 per point, capped at 600 points (€30), so
+    // the maximum payout is €40. maxBonus was 10 until 2026-09-15, which
+    // paid at most €20 and contradicted the study design.
     instructions: `Your payment consists of a €10.00 show-up fee plus a performance bonus
-      (up to €10.00). Please save your completion code below — you will need it to
+      (up to €30.00). Please save your completion code below — you will need it to
       receive your payment separately.`,
     showUpFee: '€10.00',
     baseFee: 10,
-    maxBonus: 10,
+    maxBonus: 30,
     maxPoints: 600,
   },
 };
