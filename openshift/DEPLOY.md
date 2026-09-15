@@ -168,8 +168,7 @@ oc set image deployment/neg-platform \
   app=image-registry.openshift-image-registry.svc:5000/$(oc project -q)/neg-platform@$DIGEST
 oc rollout status deployment/neg-platform
 # Confirm the running pod is on that digest:
-oc get pod -l app=neg-platform -o jsonpath='{.items[0].status.containerStatuses[0].imageID}{"
-"}'
+oc get pod -l app=neg-platform -o jsonpath='{.items[0].status.containerStatuses[0].imageID}{"\n"}'
 ```
 
 ## Database backup
