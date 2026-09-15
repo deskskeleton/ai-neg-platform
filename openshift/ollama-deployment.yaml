@@ -53,8 +53,12 @@ spec:
         - name: ollama
           image: ollama/ollama
           env:
+            # 24 slots so a full session (24 participants) never queues on the
+            # model. Each 8192-token slot costs ~1 GiB of KV cache for an 8B
+            # model; 24 slots + weights is ~35 GiB of the 80 GiB H100.
+            # Load test 2026-09-15 with 4 slots: 24 concurrent -> p95 30 s.
             - name: OLLAMA_NUM_PARALLEL
-              value: "4"
+              value: "24"
             # Pin the context window. Without this, Ollama auto-sizes based on
             # available VRAM — on an 80 GB H100 it picks 262144 tokens, which
             # balloons the KV cache (≈38 GB) and compute graph (≈35 GB) until
@@ -74,10 +78,13 @@ spec:
               mountPath: /root/.ollama
           resources:
             requests:
-              memory: "2Gi"
+              memory: "8Gi"
               cpu: "2"
             limits:
-              memory: "4Gi"
+              # The 4.9 GiB model file is mmapped during load and the container
+              # sat at 4076/4096 MiB while serving; CPU-mode inference was
+              # OOM-killed at 4Gi. 16Gi leaves headroom for load + 24 slots.
+              memory: "16Gi"
               cpu: "4"
               # nvidia.com/gpu is NOT set here. The namespace GPU quota is 0 until
               # a DSRI booking is active, and a pod that requests a GPU with
