@@ -268,24 +268,43 @@ sessionsRouter.get('/:id/participants', async (req, res) => {
   }
 })
 
-/** POST /:id/force-end -- force-end a session (timer expiry) */
+/**
+ * POST /:id/force-end -- end a round without agreement.
+ * Body: { participantId?, reason? } with reason 'timer_expired' (default) or
+ * 'admin_ended'. The round is always stored as an impasse: agreement_reached
+ * false and final_agreement carrying the reason, so it is never confused
+ * with missing data. An event of the same name is logged; the admin case has
+ * no participant, so the event's participant_id is the first member.
+ */
 sessionsRouter.post('/:id/force-end', async (req, res) => {
   try {
     const { participantId } = req.body
-    if (participantId) {
+    const reason: 'timer_expired' | 'admin_ended' = req.body.reason === 'admin_ended' ? 'admin_ended' : 'timer_expired'
+    let eventParticipant: string | null = participantId ?? null
+    if (!eventParticipant) {
+      const first = await queryOne<{ participant_id: string }>(
+        `SELECT participant_id FROM session_participants WHERE session_id = $1 ORDER BY joined_at LIMIT 1`,
+        [req.params.id]
+      )
+      eventParticipant = first?.participant_id ?? null
+    }
+    if (eventParticipant) {
       pool.query(
         `INSERT INTO event_log (id, session_id, participant_id, event_type, event_data)
-         VALUES (uuid_generate_v4(), $1, $2, 'timer_expired', $3)`,
-        [req.params.id, participantId, JSON.stringify({ ended_by: 'timer_auto_termination', timestamp: new Date().toISOString() })]
+         VALUES (uuid_generate_v4(), $1, $2, $3, $4)`,
+        [req.params.id, eventParticipant, reason, JSON.stringify({
+          ended_by: reason === 'admin_ended' ? 'admin_panel' : 'timer_auto_termination',
+          timestamp: new Date().toISOString(),
+        })]
       ).catch(() => {})
     }
     const row = await queryOne(
       `UPDATE sessions
        SET status = 'completed', ended_at = NOW(),
            agreement_reached = false,
-           final_agreement = '{"ended_reason":"timer_expired"}'::jsonb
+           final_agreement = $2::jsonb
        WHERE id = $1 RETURNING *`,
-      [req.params.id]
+      [req.params.id, JSON.stringify({ ended_reason: reason })]
     )
     if (!row) { res.status(404).json({ error: 'Session not found' }); return }
     res.json(row)

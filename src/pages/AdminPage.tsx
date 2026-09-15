@@ -26,6 +26,7 @@ import {
   getBatchRoundQueueCounts,
   clearAllBatchesAndRoundSessions,
   updateSession,
+  forceEndSession,
   generateSessionTokens,
   getSessionTokens,
   getSessionMessages,
@@ -463,16 +464,19 @@ function AdminPage() {
     }
   }
 
+  /**
+   * Manually resolve a stuck round. Goes through the force-end route so the
+   * round is stored as an impasse with reason 'admin_ended' and an event,
+   * not as a completed round with a null agreement (which reads as missing
+   * data in the export).
+   */
   async function handleEndSession(sessionId: string) {
     try {
-      await updateSession(sessionId, {
-        status: 'completed',
-        ended_at: new Date().toISOString()
-      })
-      
-      setSessions(prev => prev.map(s => 
-        s.id === sessionId 
-          ? { ...s, status: 'completed', ended_at: new Date().toISOString() }
+      await forceEndSession(sessionId, undefined, 'admin_ended')
+
+      setSessions(prev => prev.map(s =>
+        s.id === sessionId
+          ? { ...s, status: 'completed', ended_at: new Date().toISOString(), agreement_reached: false }
           : s
       ))
     } catch (err) {
