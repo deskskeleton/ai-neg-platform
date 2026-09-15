@@ -3,6 +3,14 @@
 Frozen at tag `ch1-main-study-2026-09-15`. Nothing below changes after that
 tag except by a documented hotfix (commit on `main`, new tag, note here).
 
+**Hotfixes since the tag**
+- `ch1-main-study-2026-09-15-hotfix1` (2026-09-15): debrief screen only.
+  Removed the payment code's Copy button and reworded its caption to "Show
+  this to the experimenter when you give your payment details." Reason:
+  participants never leave the booth window; the code is read to the
+  experimenter, who verifies it in the admin panel. No change to data,
+  assistant, or payment amounts.
+
 Everything the assistant is and does is defined in
 `server/src/config/assistant.ts` (profile `informed-advisory`, temperature 0,
 300 tokens, prompt version `2026-09-15.1`). History and reasoning:

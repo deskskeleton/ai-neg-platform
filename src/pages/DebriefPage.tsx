@@ -13,7 +13,7 @@
 
 import { useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { CheckCircle, Mail, Shield, FileText, ExternalLink, Copy } from 'lucide-react';
+import { CheckCircle, Mail, Shield, FileText, ExternalLink } from 'lucide-react';
 import { generatePaymentCode, getRoundSessionsForParticipant, getSessionParticipantByIds, getSession } from '@/lib/data';
 import { getScenarioById, calculatePoints, getRoleKey } from '@/config/scenarios';
 import { getRoundLabel } from '@/utils/roundLabels';
@@ -97,7 +97,6 @@ function DebriefPage() {
   const participantId = searchParams.get('participant');
   const [paymentCode, setPaymentCode] = useState<string | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [roundPoints, setRoundPoints] = useState<Array<{ round: number; scenario?: string; points: number; agreed: boolean }>>([]);
   const [totalPoints, setTotalPoints] = useState<number>(0);
   const [pointsLoaded, setPointsLoaded] = useState(false);
@@ -168,14 +167,6 @@ function DebriefPage() {
     })();
     return () => { cancelled = true };
   }, [pointsLoaded, totalPoints]);
-
-  const copyCode = () => {
-    if (paymentCode) {
-      navigator.clipboard.writeText(paymentCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -265,19 +256,11 @@ function DebriefPage() {
           )}
           {paymentCode && (
             <div className="mb-4 p-3 bg-amber-100 border border-amber-300 rounded-lg">
-              <p className="text-sm font-medium text-amber-900 mb-1">Your payment code (save this — you will need it to receive your payment):</p>
+              <p className="text-sm font-medium text-amber-900 mb-1">Your payment code. Show this to the experimenter when you give your payment details.</p>
               <div className="flex items-center gap-2">
                 <code className="text-lg font-mono font-bold text-amber-900 tracking-wider">
                   {paymentCode}
                 </code>
-                <button
-                  type="button"
-                  onClick={copyCode}
-                  className="flex items-center gap-1 px-2 py-1 text-sm bg-amber-200 hover:bg-amber-300 rounded"
-                >
-                  <Copy className="w-4 h-4" />
-                  {copied ? 'Copied!' : 'Copy'}
-                </button>
               </div>
             </div>
           )}
