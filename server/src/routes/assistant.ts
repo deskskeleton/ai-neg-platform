@@ -90,6 +90,27 @@ async function buildSystemPrompt(
   return { prompt, profile: 'informed-advisory', contextSnapshot }
 }
 
+/**
+ * Record a failed assistant request. Successful responses land in
+ * assistant_queries; without this, an outage mid-round would leave no trace
+ * that a participant asked and got nothing, which the annotation protocol
+ * needs to show. Fire-and-forget.
+ */
+function logAssistantError(sessionId: string, participantId: string, queryText: string, reason: string, detail: string): void {
+  pool.query(
+    `INSERT INTO event_log (id, session_id, participant_id, event_type, event_data)
+     VALUES (uuid_generate_v4(), $1, $2, 'assistant_error', $3)`,
+    [sessionId, participantId, JSON.stringify({
+      reason,
+      detail: detail.slice(0, 300),
+      query_text: queryText.slice(0, 1000),
+      prompt_profile: ASSISTANT_CONFIG.profile,
+      prompt_version: ASSISTANT_CONFIG.promptVersion,
+      model: ASSISTANT_CONFIG.model,
+    })]
+  ).catch(() => {})
+}
+
 /** GET /health -- check if the Ollama service is reachable */
 assistantRouter.get('/health', async (_req, res) => {
   try {
@@ -190,6 +211,7 @@ assistantRouter.post('/query', async (req, res) => {
       } catch (secondErr) {
         const detail = secondErr instanceof Error ? secondErr.message : String(secondErr)
         console.warn('Assistant warming (Ollama unreachable after retry):', detail, 'first:', firstErr)
+        logAssistantError(sessionId, participantId, userQuery, 'unreachable', detail)
         res.status(503).json({
           error: 'assistant_warming',
           message: 'The assistant is starting up — try again in a moment.',
@@ -204,12 +226,14 @@ assistantRouter.post('/query', async (req, res) => {
       // from the user's perspective — the model loader is recovering. Classify
       // it the same way so the UI shows a soft message and retains input.
       if (llmRes.status >= 500 && /llama runner|loading model|model.*loading/i.test(text)) {
+        logAssistantError(sessionId, participantId, userQuery, 'model_loading', `${llmRes.status} ${text}`)
         res.status(503).json({
           error: 'assistant_warming',
           message: 'The assistant is starting up — try again in a moment.',
         })
         return
       }
+      logAssistantError(sessionId, participantId, userQuery, 'llm_error', `${llmRes.status} ${text}`)
       res.status(502).json({ error: `LLM error ${llmRes.status}: ${text}` })
       return
     }
@@ -286,6 +310,8 @@ assistantRouter.post('/query', async (req, res) => {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
     console.error('Assistant query error:', msg)
+    const b = (req.body ?? {}) as { sessionId?: string; participantId?: string; query?: string }
+    if (b.sessionId && b.participantId) logAssistantError(b.sessionId, b.participantId, String(b.query ?? ''), 'exception', msg)
     res.status(500).json({ error: msg })
   }
 })
