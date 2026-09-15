@@ -61,6 +61,10 @@ spec:
               value: "http://ollama:11434"
             - name: LLM_MODEL
               value: "llama3.1:8b"
+            # Assistant prompt profile for the main study. See
+            # server/src/config/assistant.ts and docs/ASSISTANT_PROFILE_HISTORY.md.
+            - name: ASSISTANT_PROFILE
+              value: "informed-advisory"
             # ADMIN_SECRET is intentionally NOT set — the admin panel runs in
             # network-trust mode (lab-only UM-network access + obscured client
             # route + client-side password gate). See server/src/middleware/auth.ts.

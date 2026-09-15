@@ -8,12 +8,14 @@
  *
  * Two prompt profiles exist behind one setting (ASSISTANT_PROFILE env var):
  *   general-coaching  — the Appendix F.6 design: no payoff table, no offers or
- *                       history injected; non-directive. Default.
+ *                       history injected; non-directive. Original design.
  *   informed-advisory — role instructions, the participant's OWN payoff table,
  *                       round number, current offer and this round's visible
  *                       offers/messages are injected; concrete totals, offers
  *                       and drafts allowed. The participant still performs
  *                       every action.
+ *   Main-study default: informed-advisory (decided 2026-09-15; see
+ *   docs/ASSISTANT_PROFILE_HISTORY.md for the change note and the original).
  * Neither profile ever receives the counterpart's payoffs.
  *
  * Round data below duplicates src/config/payoffs.ts and the ROUND_THEMES in
@@ -29,7 +31,10 @@ export type AssistantProfile = (typeof ASSISTANT_PROFILES)[number]
 
 function readProfile(): AssistantProfile {
   const v = process.env.ASSISTANT_PROFILE
-  return (ASSISTANT_PROFILES as readonly string[]).includes(v ?? '') ? (v as AssistantProfile) : 'general-coaching'
+  // Main-study default is informed-advisory (decision 2026-09-15, see
+  // docs/ASSISTANT_PROFILE_HISTORY.md). general-coaching remains available
+  // for the record and for comparison runs.
+  return (ASSISTANT_PROFILES as readonly string[]).includes(v ?? '') ? (v as AssistantProfile) : 'informed-advisory'
 }
 
 export const ASSISTANT_CONFIG = {
