@@ -137,15 +137,26 @@ adminRouter.get('/batches/:id/export', async (req, res) => {
   try {
     const batchId = req.params.id
 
-    const [batchRows, participantRows, sessionRows] = await Promise.all([
+    const [batchRows, participantRows, sessionRows, scheduleRows] = await Promise.all([
       query('SELECT * FROM experiment_batches WHERE id = $1', [batchId]),
       query(
-        `SELECT p.id, p.email, p.pre_questionnaire_data, p.post_questionnaire_data,
+        `SELECT p.id, p.email, p.created_at,
+                p.demographic_data, p.pre_questionnaire_data,
+                p.post_round_survey_data, p.post_questionnaire_data,
                 bp.condition_order, bp.joined_at AS batch_joined_at
          FROM batch_participants bp
          JOIN participants p ON p.id = bp.participant_id
          WHERE bp.batch_id = $1
          ORDER BY bp.joined_at ASC`,
+        [batchId]
+      ),
+      // The pre-seeded schedule: who was meant to meet whom in each round,
+      // and which configuration that round used. Lets an analyst check the
+      // realised pairings against the intended ones from the export alone.
+      query(
+        `SELECT round_number, participant_id_1, participant_id_2, scenario
+         FROM batch_round_assignments WHERE batch_id = $1
+         ORDER BY round_number ASC, participant_id_1 ASC`,
         [batchId]
       ),
       query(
@@ -190,7 +201,7 @@ adminRouter.get('/batches/:id/export', async (req, res) => {
         : Promise.resolve([]),
       sessionIds.length > 0
         ? query(
-            `SELECT * FROM assistant_queries WHERE session_id = ANY($1) ORDER BY created_at ASC`,
+            `SELECT * FROM assistant_queries WHERE session_id = ANY($1) ORDER BY timestamp ASC`,
             [sessionIds]
           )
         : Promise.resolve([]),
@@ -235,6 +246,7 @@ adminRouter.get('/batches/:id/export', async (req, res) => {
     res.json({
       batch,
       participants: participantRows,
+      schedule: scheduleRows,
       sessions,
       exported_at: new Date().toISOString(),
     })
