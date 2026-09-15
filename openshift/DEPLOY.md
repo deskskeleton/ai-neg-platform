@@ -156,9 +156,20 @@ The app should be available at `https://neg-platform.apps.dsri.unimaas.nl`.
 
 ## Updating the app
 
+Build, then point the deployment at the digest the build produced. Do not
+`oc rollout restart` on the floating `:latest` tag: on 2026-09-15 the restart
+raced the registry push and the pod came up on the previous image.
+
 ```bash
-oc start-build neg-platform --from-dir=. --follow --wait
-oc rollout restart deployment/neg-platform
+oc start-build neg-platform --from-dir=. --follow --wait \
+  --build-arg NODE_IMAGE=image-registry.openshift-image-registry.svc:5000/$(oc project -q)/node:20-alpine
+DIGEST=$(oc get istag neg-platform:latest -o jsonpath='{.image.metadata.name}')
+oc set image deployment/neg-platform \
+  app=image-registry.openshift-image-registry.svc:5000/$(oc project -q)/neg-platform@$DIGEST
+oc rollout status deployment/neg-platform
+# Confirm the running pod is on that digest:
+oc get pod -l app=neg-platform -o jsonpath='{.items[0].status.containerStatuses[0].imageID}{"
+"}'
 ```
 
 ## Database backup
