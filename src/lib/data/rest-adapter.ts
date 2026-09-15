@@ -178,11 +178,42 @@ export async function getSessionParticipantByIds(sessionId: string, participantI
   return apiFetch(`/sessions/${sessionId}/participant/${participantId}`)
 }
 
-export async function forceEndSession(sessionId: string, participantId?: string): Promise<Session> {
+/**
+ * End a round without agreement. `reason` is recorded in final_agreement
+ * and as the event type: 'timer_expired' (default, from the participant's
+ * timer) or 'admin_ended' (from the admin panel). Either way the round is
+ * stored as an impasse (agreement_reached = false), never as missing data.
+ */
+export async function forceEndSession(
+  sessionId: string,
+  participantId?: string,
+  reason: 'timer_expired' | 'admin_ended' = 'timer_expired',
+): Promise<Session> {
   return apiFetch(`/sessions/${sessionId}/force-end`, {
     method: 'POST',
-    body: JSON.stringify({ participantId }),
+    body: JSON.stringify({ participantId, reason }),
   })
+}
+
+/**
+ * Milliseconds to add to Date.now() to get server time. Measured from the
+ * server's own timestamp on /api/health, corrected for half the round trip.
+ * Round timers must run on server time: lab machines' clocks drift, and a
+ * client 16 s ahead of the server ends its round 16 s early (seen 2026-09-15).
+ * Returns 0 if the probe fails so the timer degrades to the local clock.
+ */
+export async function getServerTimeOffset(): Promise<number> {
+  try {
+    const t0 = Date.now()
+    const res = await fetch(`${API_BASE}/api/health`, { signal: AbortSignal.timeout(5000) })
+    const t1 = Date.now()
+    const body = (await res.json()) as { timestamp?: string }
+    if (!body.timestamp) return 0
+    const server = new Date(body.timestamp).getTime()
+    return server - (t0 + (t1 - t0) / 2)
+  } catch {
+    return 0
+  }
 }
 
 export async function setBriefingReady(sessionId: string, participantId: string): Promise<void> {
@@ -450,15 +481,6 @@ export async function clearAllBatchesAndRoundSessions(): Promise<{
   batches_deleted: number
 }> {
   return apiFetch('/batches/clear-all', { method: 'DELETE' })
-}
-
-// ---------------------------------------------------------------------------
-// Server time sync
-// ---------------------------------------------------------------------------
-
-export async function getServerTimeOffset(): Promise<number> {
-  // Both clients use the same started_at from the server. Return 0 for now.
-  return 0
 }
 
 // ---------------------------------------------------------------------------

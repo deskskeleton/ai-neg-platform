@@ -16,6 +16,7 @@ import {
   endSession,
   forceEndSession,
   getSessionParticipantByIds,
+  getServerTimeOffset,
   isBackendConfigured
 } from '@/lib/data'
 import { ChatInterface } from '@/components/chat/ChatInterface'
@@ -62,6 +63,9 @@ function NegotiatePage() {
 
   // State
   const [session, setSession] = useState<Session | null>(null)
+  // Server clock minus client clock, so the round timer is not at the mercy
+  // of the lab machine's clock. Measured once on load.
+  const [serverTimeOffset, setServerTimeOffset] = useState<number>(0)
   const [scenario, setScenario] = useState<ScenarioConfig>(SCENARIO_CONFIG)
   const [participant, setParticipant] = useState<ParticipantInfo | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -110,6 +114,9 @@ function NegotiatePage() {
     setError(null)
 
     try {
+      // Measure the server clock offset first so the timer counts on server time
+      setServerTimeOffset(await getServerTimeOffset())
+
       // Load session
       const sessionData = await getSession(sessionId)
       
@@ -508,6 +515,7 @@ function NegotiatePage() {
               startedAt={session.started_at}
               isActive={isSessionActive}
               onTimeUp={handleTimeUp}
+              serverTimeOffset={serverTimeOffset}
             />
             
             {/* End Session Button */}
