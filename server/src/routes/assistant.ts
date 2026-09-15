@@ -145,9 +145,16 @@ assistantRouter.post('/query', async (req, res) => {
       message?: { content?: string }
       eval_count?: number
       prompt_eval_count?: number
+      done_reason?: string
     }
 
-    const responseText = llmData.message?.content || 'No response generated'
+    // Ollama reports done_reason "length" when the reply hit num_predict.
+    // Mark it so a cut-off recommendation is not mistaken for a short one,
+    // in the panel and in the export.
+    const doneReason = llmData.done_reason ?? null
+    const truncated = doneReason === 'length'
+    const rawText = llmData.message?.content || 'No response generated'
+    const responseText = truncated ? rawText.trimEnd() + ' […]' : rawText
     const tokensUsed = (llmData.eval_count || 0) + (llmData.prompt_eval_count || 0)
     const responseTimeMs = Date.now() - startTime
 
@@ -168,6 +175,9 @@ assistantRouter.post('/query', async (req, res) => {
         tokens_used: tokensUsed,
         response_time_ms: responseTimeMs,
         provider: 'ollama',
+        model,
+        done_reason: doneReason,
+        truncated,
       })]
     ).catch(() => {})
 
@@ -178,6 +188,8 @@ assistantRouter.post('/query', async (req, res) => {
       queriesRemaining: 999,
       provider: 'ollama',
       model,
+      doneReason,
+      truncated,
     })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Unknown error'
