@@ -2270,5 +2270,20 @@ CREATE TRIGGER trg_session_participants_update
 
 
 -- ============================================
+-- ASSISTANT CONFIGURATION COLUMNS (2026-09-15)
+-- Mirror of migration_assistant_config_columns.sql so fresh deployments
+-- include them. See that file for the column comments.
+-- ============================================
+ALTER TABLE assistant_queries ADD COLUMN IF NOT EXISTS model TEXT;
+ALTER TABLE assistant_queries ADD COLUMN IF NOT EXISTS prompt_profile TEXT;
+ALTER TABLE assistant_queries ADD COLUMN IF NOT EXISTS prompt_version TEXT;
+ALTER TABLE assistant_queries ADD COLUMN IF NOT EXISTS temperature REAL;
+ALTER TABLE assistant_queries ADD COLUMN IF NOT EXISTS max_tokens INTEGER;
+ALTER TABLE assistant_queries ADD COLUMN IF NOT EXISTS done_reason TEXT;
+ALTER TABLE assistant_queries ADD COLUMN IF NOT EXISTS truncated BOOLEAN;
+ALTER TABLE assistant_queries ADD COLUMN IF NOT EXISTS guard_triggered BOOLEAN;
+ALTER TABLE assistant_queries ADD COLUMN IF NOT EXISTS context_snapshot TEXT;
+
+-- ============================================
 -- END OF CONSOLIDATED SCHEMA
 -- ============================================
