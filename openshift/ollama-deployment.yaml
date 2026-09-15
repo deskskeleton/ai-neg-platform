@@ -67,6 +67,11 @@ spec:
             # assistant replies in this experiment.
             - name: OLLAMA_CONTEXT_LENGTH
               value: "8192"
+            # Never unload the model between requests. The default (5m) drops
+            # the weights after a quiet spell and the next participant pays a
+            # reload (7.5 s measured 2026-09-15). VRAM is not contended.
+            - name: OLLAMA_KEEP_ALIVE
+              value: "-1"
             # Model auto-pulled by the postStart hook below. Keep in sync with
             # LLM_MODEL on the neg-platform deployment.
             - name: LLM_MODEL
