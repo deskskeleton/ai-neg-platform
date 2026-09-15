@@ -57,8 +57,8 @@ Numbers quoted below were measured on 2026-09-15 on the DSRI H100.
    oc exec $POD -- psql -U neg -d negplatform -tAc "select (select count(*) from participants) participants, (select count(*) from sessions) sessions, (select count(*) from assistant_queries) assistant_rows"
    ```
    All three counts must read 0. Export anything you still need first.
-6. **Email RCS** (Laurent Winckers) the session dates and 08:30 start so they
-   are on stand-by.
+6. RCS (Laurent Winckers) has the session dates and is on stand-by; email
+   them only if dates change.
 
 ## Start of a session day (from 07:45; allow 45 minutes)
 
