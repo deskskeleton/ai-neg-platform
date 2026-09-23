@@ -109,23 +109,30 @@ never). A full group asking at the same moment gets every answer inside 4 s.
 4. **Admin panel.** On your own machine open
    `https://neg-platform.apps.dsri.unimaas.nl/admin_umdad`, enter the admin
    password. Login persists in that browser.
-5. **Group codes.** In the panel: *New Batch* → **6**. Once per group of six
-   (four times for 24). Each batch row shows its six-character code and a
-   headcount `0/6`. Write each code on six cards. Generate a spare only if a
-   code misbehaves on the day; unused open batches are harmless.
+5. **Group codes and booth links.** In the panel: *New Batch* → **6**, five
+   times (four groups plus one spare), whatever the expected headcount.
+   Each batch row shows a six-character code and a headcount `0/6`. Assign
+   groups by booth, not by card: decide which six booths are group A, B, C,
+   D, and open each booth's browser fullscreen on that group's link:
+   `https://neg-platform.apps.dsri.unimaas.nl/join/<CODE>`. The page
+   validates the code and stops on the consent screen. Nothing is created
+   until a participant ticks consent and continues, so an unused booth costs
+   nothing. Keep the five links on a sheet for yourself; participants never
+   see or type a code and never handle a card.
 
 ## During the session
 
-**Joining (first 10 minutes).** As people type their code the *Batches* table
-headcount climbs to `6/6`. When the sixth joins, that group's three-round
-schedule is fixed. Someone typing a full group's code sees *"This group is
-full. Please tell the experimenter."* and nothing is recorded for them; give
-them a card from a group that is not full. Watch for a group stuck at `5/6`
-while another shows `6/6` earlier than expected: that is a mis-typed code
-landing in the wrong group. Fix it before the sixth person joins: the
-misplaced person re-enters with the right code only if their group still has
-a seat; otherwise cancel that group's batch (Delete) and hand out a fresh
-code to all six.
+**Joining (first 10 minutes).** Hand each participant a booth number; the
+booth is already on its group's consent screen. As people tick and continue,
+the *Batches* table headcount climbs to `6/6`; when the sixth joins, that
+group's three-round schedule is fixed. Because the group is fixed by the
+booth link, nobody can join the wrong group. If a booth's page is lost
+(someone pressed back), reopen that group's link on it. If a whole group's
+batch misbehaves, open the spare batch's link on those six booths: the group
+keeps the same people, only its code changes, and nothing is redistributed.
+The message *"This group is full. Please tell the experimenter."* can then
+only mean a booth is being reused after its group already has six; move that
+person to a booth of a group that is not full.
 
 **Rounds.** The *Round Sessions* table lists each pair with status, a live
 timer, the configuration (`v1.a/b/c`), and actions. Pairs form and start by
@@ -186,7 +193,7 @@ commands.
 |---|---|
 | Preflight assistant check fails with `warming` twice in a row | `oc get pods`; if Ollama is `0/1` or restarting, `oc logs` it; check GPU quota (day-before step 3). Card-fault signature: `inference compute id=cpu` → delete the pod. |
 | Participant sees "assistant is starting up" repeatedly | Same as above. Rounds continue without the assistant; the failures are logged. |
-| A group code shows `6/6` before six people used it | Wrong-group join. Delete that batch, give the six a fresh code. |
+| A group code shows `6/6` before six booths were used | Someone continued twice or a booth was reused; check the Batches table against the seating sheet. |
 | A round is `waiting 2/2` and will not start | Start action on the row. |
 | A round is `active` but both participants are gone | End session on the row (impasse, `admin_ended`). |
 | Panel shows nothing / red errors | Reload the panel. If `GET /api/admin/sessions` fails, `oc logs deployment/neg-platform`. |
