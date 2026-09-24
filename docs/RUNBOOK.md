@@ -10,6 +10,14 @@ tag except by a documented hotfix (commit on `main`, new tag, note here).
   participants never leave the booth window; the code is read to the
   experimenter, who verifies it in the admin panel. No change to data,
   assistant, or payment amounts.
+- `ch1-main-study-2026-09-15-hotfix2` (2026-09-24): round lobby only.
+  Participants in a group now match only with their scheduled partner.
+  Reason: in the 2026-09-24 morning session (groups `P9NGV5`, `574BA5`)
+  people joined over several minutes; the first two in `P9NGV5` reached the
+  round-1 lobby before the group was full and were paired with each other by
+  a fallback that ignored the schedule, stranding their scheduled partners.
+  Early arrivals now wait in the lobby until the sixth person joins. No
+  change to the schedule, assistant, data, or payment amounts.
 
 Everything the assistant is and does is defined in
 `server/src/config/assistant.ts` (profile `informed-advisory`, temperature 0,

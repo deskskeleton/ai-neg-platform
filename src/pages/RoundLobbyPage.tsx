@@ -2,14 +2,15 @@
  * RoundLobbyPage (pool flow)
  *
  * Participant waits to be matched for a round (slot 1, 2, or 3).
- * Polls tryMatchPoolRound (caller gets match); if null, checks getSessionForParticipantRound
- * so the partner (matched by the other's call) also gets redirected to briefing.
+ * Batch participants match only through the batch schedule (created when the group fills).
+ * Without a batch, polls tryMatchPoolRound (caller gets match); if null, checks
+ * getSessionForParticipantRound so the partner (matched by the other's call) is redirected too.
  */
 
 import { useEffect, useRef } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { Loader2, Users } from 'lucide-react'
-import { addToRoundQueue, getOrCreateRoundSession, tryMatchPoolRound, getSessionForParticipantRound, getBatch, getBatchHasSchedule, getBatchRoundQueueCounts, matchBatchForRound } from '@/lib/data'
+import { addToRoundQueue, getOrCreateRoundSession, tryMatchPoolRound, getSessionForParticipantRound } from '@/lib/data'
 
 function RoundLobbyPage() {
   const { slotIndex: slotParam } = useParams<{ slotIndex: string }>()
@@ -19,9 +20,6 @@ function RoundLobbyPage() {
   const batchId = searchParams.get('batch')
   const slotIndex = slotParam ? parseInt(slotParam, 10) : 0
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const hasTriggeredAutoMatchRef = useRef(false)
-  /** When true, batch has pre-seeded schedule; do not use condition-based fallback so we only match with designated partner. */
-  const hasPreSeededScheduleRef = useRef<boolean | null>(null)
 
   // Add to round queue as soon as lobby loads so we are in the queue before first poll
   useEffect(() => {
@@ -35,7 +33,7 @@ function RoundLobbyPage() {
     let cancelled = false
 
     const poll = async () => {
-      // Pre-seeded path (batch has 18 and schedule exists): look up assigned partner, create session when both ready
+      // Schedule path: look up assigned partner, create session when both ready (null until the group is full)
       if (batchId) {
         const preSeeded = await getOrCreateRoundSession(batchId, participantId, slotIndex)
         if (preSeeded) {
@@ -54,57 +52,29 @@ function RoundLobbyPage() {
           navigate(`/briefing/${existingPreSeeded.session.id}?${params.toString()}`)
           return
         }
-        // When batch has pre-seeded schedule, do NOT use condition-based matching: wait only for designated partner
-        if (hasPreSeededScheduleRef.current === true) {
-          return
-        }
+        // Batch participants only ever match through the schedule, which is created when the
+        // group fills (6, 12 or 18). Someone who reaches the lobby before that keeps polling here;
+        // the condition-based fallback below would pair them with whoever else is early and
+        // strand their scheduled partners (2026-09-24 session).
+        return
       }
-      // Fallback: condition-based matching (batches without schedule, e.g. < 18 joined)
+      // No batch: condition-based matching
       const result = await tryMatchPoolRound(participantId, slotIndex)
       if (result) {
         if (pollingRef.current) clearInterval(pollingRef.current)
-        const params = new URLSearchParams({ participant: participantId })
-        if (batchId) params.set('batch', batchId)
-        navigate(`/briefing/${result.session_id}?${params.toString()}`)
+        navigate(`/briefing/${result.session_id}?participant=${participantId}`)
         return
       }
-      // Auto-match when queue is full (batch flow without pre-seed): trigger batch match once
-      if (batchId && !hasTriggeredAutoMatchRef.current) {
-        try {
-          const [batch, queueCounts] = await Promise.all([
-            getBatch(batchId),
-            getBatchRoundQueueCounts([batchId]),
-          ])
-          const max = batch?.max_participants ?? 0
-          const count = queueCounts[batchId]?.[slotIndex as 1 | 2 | 3] ?? 0
-          if (max > 0 && count >= max) {
-            hasTriggeredAutoMatchRef.current = true
-            await matchBatchForRound(batchId, slotIndex)
-          }
-        } catch (_) {
-          // Ignore; admin can still press R1/R2/R3
-        }
-      }
-      // Partner path: we were matched (by batch match or other's call); check by round
+      // Partner path: we were matched by the other's call; check by round
       const existing = await getSessionForParticipantRound(participantId, slotIndex)
       if (existing) {
         if (pollingRef.current) clearInterval(pollingRef.current)
-        const params = new URLSearchParams({ participant: participantId })
-        if (batchId) params.set('batch', batchId)
-        navigate(`/briefing/${existing.session.id}?${params.toString()}`)
+        navigate(`/briefing/${existing.session.id}?participant=${participantId}`)
         return
       }
     }
 
     const run = async () => {
-      if (batchId) {
-        try {
-          const has = await getBatchHasSchedule(batchId)
-          if (!cancelled) hasPreSeededScheduleRef.current = has
-        } catch (_) {
-          if (!cancelled) hasPreSeededScheduleRef.current = false
-        }
-      }
       await poll()
       if (!cancelled) pollingRef.current = setInterval(poll, 2000)
     }
